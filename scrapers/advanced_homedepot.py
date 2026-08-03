@@ -1,4 +1,5 @@
 from typing import Dict, Optional, List
+from selenium.webdriver.common.by import By
 from .advanced_base import AdvancedScraper
 
 class AdvancedHomeDepotScraper(AdvancedScraper):
