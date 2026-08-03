@@ -113,6 +113,19 @@ The system will:
 3. **Price Drop Detection**: Monitors for significant price drops
 4. **Notifications**: Sends Discord alerts when price drop exceeds minimum threshold (default 15%)
 
+## Tests
+
+Unit tests live in `tests/` and run fully offline (no network, no browser, no Discord connection):
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+pytest --cov=. --cov-report=term-missing   # with coverage
+```
+
+The `test_*.py` scripts in the repository root are manual smoke scripts that hit live retailer and
+Discord endpoints; they are excluded from the default `pytest` run via `pytest.ini`.
+
 ## Configuration
 
 ### Check Interval

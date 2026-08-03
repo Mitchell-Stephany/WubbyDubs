@@ -1,4 +1,7 @@
 from typing import Dict, Optional, List
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from .advanced_base import AdvancedScraper
 
 class AdvancedTargetScraper(AdvancedScraper):
