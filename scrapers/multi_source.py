@@ -1,8 +1,9 @@
+import logging
 from typing import Dict, Optional, List
-import requests
 from .base import BaseScraper
 import random
-import time
+
+logger = logging.getLogger(__name__)
 
 class MultiSourceScraper(BaseScraper):
     """Multi-source scraper that provides reliable product discovery"""
@@ -25,6 +26,11 @@ class MultiSourceScraper(BaseScraper):
                 self.product_prices[product_id] *= random.uniform(1.1, 1.2)  # 10-20% increase
             
             return self.product_prices[product_id]
+
+        logger.warning(
+            "MultiSourceScraper cannot price %s; it only tracks its own generic_* products",
+            product_id
+        )
         return None
     
     def get_product_info(self, product_id: str) -> Dict:

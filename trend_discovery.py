@@ -1,8 +1,13 @@
-from typing import List, Dict
-from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
-from scrapers.multi_source import MultiSourceScraper
-from database import Database
+import logging
 import random
+import time
+from typing import List, Dict
+
+from database import Database
+from exceptions import DatabaseError, ScraperError
+from scrapers.multi_source import MultiSourceScraper
+
+logger = logging.getLogger(__name__)
 
 class TrendDiscovery:
     """Discovers trending products to track"""
@@ -43,15 +48,19 @@ class TrendDiscovery:
     def discover_trending_products(self, max_products: int = 50) -> List[Dict]:
         """Discover trending products across all retailers"""
         all_products = []
-        
+        attempts = 0
+        failures = 0
+
         for retailer in self.config.RETAILERS:
             if retailer not in self.scrapers:
+                logger.warning("No scraper configured for retailer %s", retailer)
                 continue
             
             scraper = self.scrapers[retailer]
             
             # Get trending products from each category
             for category in self.config.CATEGORIES:
+                attempts += 1
                 try:
                     if hasattr(scraper, 'get_trending_products'):
                         products = scraper.get_trending_products(category, limit=10)
@@ -64,12 +73,18 @@ class TrendDiscovery:
                     
                     # Add delay between categories to avoid detection
                     if self.config.ADVANCED_SCRAPING:
-                        import time
                         time.sleep(random.uniform(2, 4))
                     
-                except Exception as e:
-                    print(f"Error discovering products from {retailer} in {category}: {e}")
-                    continue
+                except ScraperError:
+                    logger.warning(
+                        "Discovery failed for %s/%s", retailer, category, exc_info=True
+                    )
+                    failures += 1
+
+        if attempts and failures == attempts:
+            raise ScraperError(
+                f"Product discovery failed for all {attempts} retailer/category combinations"
+            )
         
         # Remove duplicates and limit
         unique_products = self._deduplicate_products(all_products)
@@ -105,6 +120,7 @@ class TrendDiscovery:
     def add_discovered_products(self, products: List[Dict]):
         """Add discovered products to the database"""
         added_count = 0
+        failed_count = 0
         
         for product in products:
             try:
@@ -116,16 +132,20 @@ class TrendDiscovery:
                     category=product.get('category', 'Unknown')
                 )
                 added_count += 1
-            except Exception as e:
-                print(f"Error adding product {product.get('name')}: {e}")
-                continue
+            except (DatabaseError, KeyError):
+                logger.error(
+                    "Could not add product %r", product.get('name'), exc_info=True
+                )
+                failed_count += 1
         
-        print(f"Added {added_count} new products to track")
+        logger.info("Added %s new products to track", added_count)
+        if failed_count:
+            logger.error("Failed to add %s of %s discovered products", failed_count, len(products))
         return added_count
     
     def refresh_product_pool(self, max_products: int = 50):
         """Discover and add new trending products"""
-        print("Discovering trending products...")
+        logger.info("Discovering trending products...")
         products = self.discover_trending_products(max_products)
         added = self.add_discovered_products(products)
         return added

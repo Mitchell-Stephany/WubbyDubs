@@ -1,6 +1,10 @@
+import logging
 from typing import Dict, Optional, List
 import requests
+from exceptions import ScraperError
 from .base import BaseScraper
+
+logger = logging.getLogger(__name__)
 
 class ShopScoutScraper(BaseScraper):
     """ShopScout scraper for Shopify stores - no API key required"""
@@ -10,112 +14,87 @@ class ShopScoutScraper(BaseScraper):
     
     def __init__(self, config):
         super().__init__(config)
-    
+
+    def _fetch_catalog(self, domain: str) -> Dict:
+        """Fetch a Shopify store catalog, raising ScraperError when it is unavailable."""
+        # Shopify stores have a public JSON API at /products.json
+        url = f"https://{domain}/products.json"
+        try:
+            return self._get(url).json()
+        except requests.RequestException as exc:
+            raise ScraperError(f"Shopify request to {url} failed: {exc}") from exc
+        except ValueError as exc:
+            raise ScraperError(f"Shopify store {domain} returned a non-JSON catalog: {exc}") from exc
+
+    @staticmethod
+    def _variant_price(product: Dict) -> Optional[float]:
+        """Price of the first available variant, falling back to the first variant."""
+        variants = product.get('variants', [])
+        candidates = [v for v in variants if v.get('available')] or variants[:1]
+        for variant in candidates:
+            raw = variant.get('price')
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Ignoring unparseable Shopify variant price %r for product %s",
+                    raw, product.get('id')
+                )
+        return None
+
     def get_store_products(self, domain: str) -> List[Dict]:
         """Get all products from a Shopify store"""
-        try:
-            # Shopify stores have a public JSON API at /products.json
-            url = f"https://{domain}/products.json"
-            
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            products = []
-            
-            for product in data.get('products', []):
-                # Get the first available variant price
-                price = None
-                for variant in product.get('variants', []):
-                    if variant.get('available'):
-                        price = float(variant.get('price', 0))
-                        break
-                
-                if not price and product.get('variants'):
-                    # Fallback to first variant price
-                    price = float(product['variants'][0].get('price', 0))
-                
-                products.append({
-                    'product_id': str(product.get('id')),
-                    'name': product.get('title'),
-                    'url': f"https://{domain}/products/{product.get('handle')}",
-                    'category': 'Unknown',  # Shopify doesn't always expose categories
-                    'price': price,
-                    'retailer': f'shopify_{domain}',
-                    'domain': domain,
-                    'description': product.get('body_html', ''),
-                    'images': [img.get('src') for img in product.get('images', [])]
-                })
-            
-            return products
-            
-        except Exception as e:
-            print(f"Error scraping Shopify store {domain}: {e}")
-            return []
-    
+        data = self._fetch_catalog(domain)
+        products = []
+
+        for product in data.get('products', []):
+            price = self._variant_price(product)
+
+            products.append({
+                'product_id': str(product.get('id')),
+                'name': product.get('title'),
+                'url': f"https://{domain}/products/{product.get('handle')}",
+                'category': 'Unknown',  # Shopify doesn't always expose categories
+                'price': price,
+                'retailer': f'shopify_{domain}',
+                'domain': domain,
+                'description': product.get('body_html', ''),
+                'images': [img.get('src') for img in product.get('images', [])]
+            })
+
+        return products
+
     def get_product_price(self, product_id: str, domain: str) -> Optional[float]:
         """Get current price for a specific product from a Shopify store"""
-        try:
-            url = f"https://{domain}/products.json"
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            for product in data.get('products', []):
-                if str(product.get('id')) == product_id:
-                    # Get first available variant price
-                    for variant in product.get('variants', []):
-                        if variant.get('available'):
-                            return float(variant.get('price', 0))
-                    
-                    # Fallback to first variant
-                    if product.get('variants'):
-                        return float(product['variants'][0].get('price', 0))
-            
-            return None
-            
-        except Exception as e:
-            print(f"Error fetching price for product {product_id} from {domain}: {e}")
-            return None
-    
+        data = self._fetch_catalog(domain)
+
+        for product in data.get('products', []):
+            if str(product.get('id')) == product_id:
+                return self._variant_price(product)
+
+        logger.warning("Product %s not found in Shopify catalog for %s", product_id, domain)
+        return None
+
     def get_product_info(self, product_id: str, domain: str) -> Dict:
         """Get detailed product information from a Shopify store"""
-        try:
-            url = f"https://{domain}/products.json"
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            for product in data.get('products', []):
-                if str(product.get('id')) == product_id:
-                    price = None
-                    for variant in product.get('variants', []):
-                        if variant.get('available'):
-                            price = float(variant.get('price', 0))
-                            break
-                    
-                    if not price and product.get('variants'):
-                        price = float(product['variants'][0].get('price', 0))
-                    
-                    return {
-                        'name': product.get('title'),
-                        'url': f"https://{domain}/products/{product.get('handle')}",
-                        'category': 'Unknown',
-                        'price': price,
-                        'description': product.get('body_html', ''),
-                        'images': [img.get('src') for img in product.get('images', [])],
-                        'vendor': product.get('vendor'),
-                        'product_type': product.get('product_type'),
-                        'tags': product.get('tags', '')
-                    }
-            
-            return {}
-            
-        except Exception as e:
-            print(f"Error fetching product info for {product_id} from {domain}: {e}")
-            return {}
+        data = self._fetch_catalog(domain)
+
+        for product in data.get('products', []):
+            if str(product.get('id')) == product_id:
+                return {
+                    'name': product.get('title'),
+                    'url': f"https://{domain}/products/{product.get('handle')}",
+                    'category': 'Unknown',
+                    'price': self._variant_price(product),
+                    'description': product.get('body_html', ''),
+                    'images': [img.get('src') for img in product.get('images', [])],
+                    'vendor': product.get('vendor'),
+                    'product_type': product.get('product_type'),
+                    'tags': product.get('tags', '')
+                }
+
+        logger.warning("Product %s not found in Shopify catalog for %s", product_id, domain)
+        return {}
     
     def search_products(self, query: str, domain: str = None) -> List[Dict]:
         """Search for products (Shopify doesn't have built-in search, returns all products)"""

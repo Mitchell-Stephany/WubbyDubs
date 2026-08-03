@@ -66,44 +66,46 @@ def check_env_file():
 
 def test_database():
     """Test database creation"""
+    from database import Database
+    from exceptions import DatabaseError
+
+    test_db = 'test_setup.db'
     try:
-        from database import Database
-        test_db = 'test_setup.db'
-        db = Database(test_db)
+        Database(test_db)
         print("[OK] Database initialization successful")
+        return True
+    except DatabaseError as exc:
+        print(f"[X] Database error: {exc}")
+        return False
+    finally:
         # Clean up test database
         try:
             os.remove(test_db)
-        except:
-            pass
-        return True
-    except Exception as e:
-        print(f"[X] Database error: {e}")
-        return False
+        except OSError as exc:
+            print(f"[!] Could not remove {test_db}: {exc}")
 
 def test_discord_connection():
     """Test Discord bot connection (optional)"""
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-        
-        token = os.getenv('DISCORD_BOT_TOKEN')
-        channel_id = os.getenv('DISCORD_CHANNEL_ID')
-        
-        if not token or token == 'your_discord_bot_token_here':
-            print("[!] Discord bot token not configured, skipping connection test")
-            return True
-        
-        if not channel_id or channel_id == 'your_channel_id_here':
-            print("[!] Discord channel ID not configured, skipping connection test")
-            return True
-        
-        print("[!] Discord credentials configured - connection will be tested when running main application")
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    token = os.getenv('DISCORD_BOT_TOKEN')
+    channel_id = os.getenv('DISCORD_CHANNEL_ID')
+
+    if not token or token == 'your_discord_bot_token_here':
+        print("[!] Discord bot token not configured, skipping connection test")
         return True
-        
-    except Exception as e:
-        print(f"[X] Discord test error: {e}")
+
+    if not channel_id or channel_id == 'your_channel_id_here':
+        print("[!] Discord channel ID not configured, skipping connection test")
+        return True
+
+    if not channel_id.isdigit():
+        print(f"[X] DISCORD_CHANNEL_ID must be numeric, got {channel_id!r}")
         return False
+
+    print("[!] Discord credentials configured - connection will be tested when running main application")
+    return True
 
 def main():
     """Run all setup checks"""

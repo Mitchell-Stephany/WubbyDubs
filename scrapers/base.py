@@ -20,6 +20,15 @@ class BaseScraper(ABC):
             'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive',
         }
+
+    def _get(self, url: str, params: Dict = None) -> requests.Response:
+        """Perform a GET request with a timeout, raising requests.RequestException on failure."""
+        timeout = getattr(self.config, 'REQUEST_TIMEOUT_SECONDS', 15.0)
+        response = self.session.get(
+            url, params=params, headers=self._get_headers(), timeout=timeout
+        )
+        response.raise_for_status()
+        return response
     
     @abstractmethod
     def get_product_price(self, product_id: str) -> Optional[float]:

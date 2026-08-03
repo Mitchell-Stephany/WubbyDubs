@@ -1,5 +1,10 @@
+import logging
 from typing import Dict, Optional, List
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.webdriver.common.by import By
 from .advanced_base import AdvancedScraper
+
+logger = logging.getLogger(__name__)
 
 class AdvancedHomeDepotScraper(AdvancedScraper):
     """Advanced Home Depot scraper with anti-detection"""
@@ -8,145 +13,119 @@ class AdvancedHomeDepotScraper(AdvancedScraper):
     
     def get_product_price(self, product_id: str) -> Optional[float]:
         """Get current price for a product using product ID"""
-        if not self.driver:
-            return None
-            
-        try:
-            url = f"{self.BASE_URL}/p/{product_id}"
-            self.driver.get(url)
-            self._random_delay(3, 6)
-            
-            # Try multiple price selectors
-            price_selectors = [
-                (By.CSS_SELECTOR, '[data-testid="product-price"]'),
-                (By.CSS_SELECTOR, '.price__format'),
-                (By.CSS_SELECTOR, '.price-dollars'),
-                (By.CSS_SELECTOR, '.price-cents'),
-                (By.CSS_SELECTOR, '.product-price'),
-                (By.XPATH, '//div[contains(@class, "price")]'),
-            ]
-            
-            for by, selector in price_selectors:
-                try:
-                    price_text = self._safe_get_element_text(by, selector, timeout=5)
-                    if price_text:
-                        price_text = price_text.replace('$', '').replace(',', '').strip()
-                        try:
-                            return float(price_text)
-                        except ValueError:
-                            continue
-                except:
-                    continue
-            
-            return None
-            
-        except Exception as e:
-            print(f"Error fetching Home Depot price for {product_id}: {e}")
-            return None
+        url = f"{self.BASE_URL}/p/{product_id}"
+        self.driver.get(url)
+        self._random_delay(3, 6)
+
+        # Try multiple price selectors
+        price_selectors = [
+            (By.CSS_SELECTOR, '[data-testid="product-price"]'),
+            (By.CSS_SELECTOR, '.price__format'),
+            (By.CSS_SELECTOR, '.price-dollars'),
+            (By.CSS_SELECTOR, '.price-cents'),
+            (By.CSS_SELECTOR, '.product-price'),
+            (By.XPATH, '//div[contains(@class, "price")]'),
+        ]
+
+        for by, selector in price_selectors:
+            price_text = self._safe_get_element_text(by, selector, timeout=5)
+            if not price_text:
+                continue
+            try:
+                return float(price_text.replace('$', '').replace(',', '').strip())
+            except ValueError:
+                logger.debug("Unparseable Home Depot price text %r from %s", price_text, selector)
+
+        logger.warning("No parseable price found on Home Depot page for %s", product_id)
+        return None
     
     def get_product_info(self, product_id: str) -> Dict:
         """Get detailed product information"""
-        if not self.driver:
-            return {}
-            
+        url = f"{self.BASE_URL}/p/{product_id}"
+        self.driver.get(url)
+        self._random_delay(3, 6)
+
+        # Extract product name
+        name = self._safe_get_element_text(By.CSS_SELECTOR, 'h1.product-title', timeout=10)
+        if not name:
+            name = self._safe_get_element_text(By.TAG_NAME, 'h1', timeout=10)
+
+        # Extract price
+        price = self.get_product_price(product_id)
+
+        # Extract category from breadcrumb
+        category = "Unknown"
         try:
-            url = f"{self.BASE_URL}/p/{product_id}"
-            self.driver.get(url)
-            self._random_delay(3, 6)
-            
-            # Extract product name
-            name = self._safe_get_element_text(By.CSS_SELECTOR, 'h1.product-title', timeout=10)
-            if not name:
-                name = self._safe_get_element_text(By.TAG_NAME, 'h1', timeout=10)
-            
-            # Extract price
-            price = self.get_product_price(product_id)
-            
-            # Extract category from breadcrumb
-            category = "Unknown"
-            try:
-                category_elements = self.driver.find_elements(By.CSS_SELECTOR, '.breadcrumb a')
-                if category_elements:
-                    category = category_elements[-1].text.strip()
-            except:
-                pass
-            
-            return {
-                'name': name or "Unknown",
-                'url': url,
-                'category': category,
-                'price': price,
-                'description': ''
-            }
-            
-        except Exception as e:
-            print(f"Error fetching Home Depot product info for {product_id}: {e}")
-            return {}
+            category_elements = self.driver.find_elements(By.CSS_SELECTOR, '.breadcrumb a')
+            if category_elements:
+                category = category_elements[-1].text.strip()
+        except NoSuchElementException:
+            logger.debug("No breadcrumb on Home Depot page for %s", product_id)
+
+        return {
+            'name': name or "Unknown",
+            'url': url,
+            'category': category,
+            'price': price,
+            'description': ''
+        }
     
     def search_products(self, query: str, category: str = None, limit: int = 20) -> List[Dict]:
         """Search for products on Home Depot"""
-        if not self.driver:
-            return []
-            
-        try:
-            url = f"{self.BASE_URL}/s/{query}"
-            self.driver.get(url)
-            self._random_delay(3, 5)
-            
-            products = []
-            product_cards = self.driver.find_elements(By.CSS_SELECTOR, '.product-pod')
-            
-            for card in product_cards[:limit]:
-                try:
-                    # Extract product ID from URL
-                    link_element = card.find_element(By.CSS_SELECTOR, 'a.product-pod__link')
-                    if not link_element:
-                        continue
-                    
-                    product_url = link_element.get_attribute('href')
-                    # Extract ID from URL (usually after /p/)
-                    if '/p/' in product_url:
-                        product_id = product_url.split('/p/')[-1].split('/')[0]
-                    else:
-                        continue
-                    
-                    # Extract name
-                    name_element = card.find_element(By.CSS_SELECTOR, '.product-pod__title')
-                    name = name_element.text.strip() if name_element else "Unknown"
-                    
-                    # Extract price
-                    price = None
-                    try:
-                        price_element = card.find_element(By.CSS_SELECTOR, '.price__format')
-                        price_text = price_element.text.strip()
-                        price_text = price_text.replace('$', '').replace(',', '')
-                        try:
-                            price = float(price_text)
-                        except ValueError:
-                            pass
-                    except:
-                        pass
-                    
-                    products.append({
-                        'product_id': product_id,
-                        'name': name,
-                        'url': f"{self.BASE_URL}{product_url}",
-                        'category': category or 'Unknown',
-                        'price': price,
-                        'retailer': 'homedepot'
-                    })
-                    
-                    self._random_delay(0.5, 1.5)  # Small delay between products
-                    
-                except Exception as e:
-                    print(f"Error parsing Home Depot product card: {e}")
+        url = f"{self.BASE_URL}/s/{query}"
+        self.driver.get(url)
+        self._random_delay(3, 5)
+
+        products = []
+        product_cards = self.driver.find_elements(By.CSS_SELECTOR, '.product-pod')
+        skipped = 0
+
+        for card in product_cards[:limit]:
+            try:
+                # Extract product ID from URL
+                link_element = card.find_element(By.CSS_SELECTOR, 'a.product-pod__link')
+                product_url = link_element.get_attribute('href')
+                if not product_url or '/p/' not in product_url:
+                    skipped += 1
                     continue
-            
-            return products
-            
-        except Exception as e:
-            print(f"Error searching Home Depot products: {e}")
-            return []
+
+                product_id = product_url.split('/p/')[-1].split('/')[0]
+
+                # Extract name
+                name_element = card.find_element(By.CSS_SELECTOR, '.product-pod__title')
+                name = name_element.text.strip() if name_element else "Unknown"
+            except (NoSuchElementException, WebDriverException):
+                logger.warning("Could not parse a Home Depot product card", exc_info=True)
+                skipped += 1
+                continue
+
+            products.append({
+                'product_id': product_id,
+                'name': name,
+                'url': f"{self.BASE_URL}{product_url}",
+                'category': category or 'Unknown',
+                'price': self._card_price(card),
+                'retailer': 'homedepot'
+            })
+
+            self._random_delay(0.5, 1.5)  # Small delay between products
+
+        if skipped:
+            logger.warning("Skipped %s unparseable Home Depot product cards", skipped)
+
+        return products
+
+    def _card_price(self, card) -> Optional[float]:
+        """Price shown on a search result card, or None when it is absent."""
+        try:
+            price_text = card.find_element(By.CSS_SELECTOR, '.price__format').text.strip()
+        except NoSuchElementException:
+            return None
+        try:
+            return float(price_text.replace('$', '').replace(',', ''))
+        except ValueError:
+            logger.debug("Unparseable Home Depot card price %r", price_text)
+            return None
     
     def get_trending_products(self, category: str = 'all', limit: int = 20) -> List[Dict]:
         """Get trending products from Home Depot"""
