@@ -16,21 +16,25 @@ class Config:
     EBAY_APP_ID = os.getenv('EBAY_APP_ID')
     EBAY_CERT_ID = os.getenv('EBAY_CERT_ID')
     EBAY_DEV_ID = os.getenv('EBAY_DEV_ID')
-    EBAY_ENABLED = bool(EBAY_APP_ID and EBAY_CERT_ID and EBAY_DEV_ID)
+    EBAY_ENABLED = bool(EBAY_APP_ID and EBAY_CERT_ID and EBAY_DEV_ID and 
+                       EBAY_APP_ID != 'your_ebay_app_id_here' and
+                       EBAY_CERT_ID != 'your_ebay_cert_id_here' and
+                       EBAY_DEV_ID != 'your_ebay_dev_id_here')
     
     # Best Buy API (optional)
     BEST_BUY_API_KEY = os.getenv('BEST_BUY_API_KEY')
-    BEST_BUY_ENABLED = bool(BEST_BUY_API_KEY)
+    BEST_BUY_ENABLED = bool(BEST_BUY_API_KEY and BEST_BUY_API_KEY != 'your_best_buy_api_key_here')
     
     CHECK_INTERVAL_MINUTES = int(os.getenv('CHECK_INTERVAL_MINUTES', 5))
     MIN_PROFIT_PERCENTAGE = float(os.getenv('MIN_PROFIT_PERCENTAGE', 15))
     EBAY_FEE_PERCENTAGE = float(os.getenv('EBAY_FEE_PERCENTAGE', 13))
     
     # Retailers to track (focus on working scrapers)
-    RETAILERS = ['bestbuy', 'target', 'homedepot']
+    # Currently using web scraping which may face anti-bot measures
+    RETAILERS = ['target', 'homedepot']  # Removed bestbuy due to API requirements
     
-    # Note: Free APIs (ShopScout, Shoptera) are available but may require updates
-    # System will focus on web scraping for reliable data
+    # Note: Web scraping may face anti-bot measures from retailers
+    # Consider using official APIs when available
     
     # Shopify stores for ShopScout (if API becomes available)
     SHOPIFY_STORES = [

@@ -16,10 +16,16 @@ class PriceTracker:
     """Main price tracking system"""
     
     def __init__(self):
+        print("Loading configuration...")
         self.config = Config()
+        print("Configuration loaded")
+        
+        print("Initializing database...")
         self.db = Database()
+        print("Database initialized")
         
         # Initialize scrapers
+        print("Initializing scrapers...")
         self.scrapers = {
             'bestbuy': BestBuyScraper(self.config) if self.config.BEST_BUY_ENABLED else None,
             'target': TargetScraper(self.config),
@@ -28,20 +34,34 @@ class PriceTracker:
         
         # Remove None values
         self.scrapers = {k: v for k, v in self.scrapers.items() if v is not None}
+        print(f"Scrapers initialized: {list(self.scrapers.keys())}")
         
         # Initialize eBay API
+        print("Initializing eBay API...")
         self.ebay_api = eBayAPI(self.config)
+        print(f"eBay API initialized (enabled: {self.ebay_api.enabled})")
         
         # Initialize components
+        print("Initializing price analyzer...")
         self.price_analyzer = PriceAnalyzer(self.config, self.db, self.ebay_api)
+        print("Price analyzer initialized")
+        
+        print("Initializing trend discovery...")
         self.trend_discovery = TrendDiscovery(self.config, self.db)
+        print("Trend discovery initialized")
         
         # Discord bot (will be started in separate thread)
+        print("Initializing Discord bot...")
         self.discord_bot = DiscordBot(self.config)
         self.discord_thread = None
+        print("Discord bot initialized")
         
         # Scheduler
+        print("Initializing scheduler...")
         self.scheduler = AsyncIOScheduler()
+        print("Scheduler initialized")
+        
+        print("PriceTracker initialization complete")
     
     def start_discord_bot(self):
         """Start Discord bot in a separate thread"""
@@ -115,8 +135,12 @@ class PriceTracker:
         try:
             added = self.trend_discovery.refresh_product_pool(max_products=30)
             print(f"Added {added} new products to track")
+            if added == 0:
+                print("Note: Scrapers may be blocked by anti-bot measures")
+                print("Consider using official APIs for reliable data access")
         except Exception as e:
             print(f"Error discovering new products: {e}")
+            print("Note: This is expected if retailers have anti-scraping measures")
     
     def setup_scheduler(self):
         """Setup the scheduled tasks"""
@@ -184,13 +208,17 @@ class PriceTracker:
 
 def main():
     """Main entry point"""
+    print("Initializing Price Tracker...")
     tracker = PriceTracker()
+    print("Price Tracker initialized successfully")
     
     # Run the async main function
+    print("Starting async loop...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
     try:
+        print("Running tracker...")
         loop.run_until_complete(tracker.run())
     except KeyboardInterrupt:
         print("\nShutting down gracefully...")
