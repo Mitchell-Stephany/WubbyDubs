@@ -2,14 +2,20 @@
 Run the price tracking system without Discord complexity
 """
 
+import logging
+import sys
 import time
-from datetime import datetime
+
 from config import Config
 from database import Database
-from scrapers.multi_source import MultiSourceScraper
 from ebay_api import eBayAPI
+from exceptions import DatabaseError, PriceTrackerError
+from logging_config import configure_logging
 from price_analyzer import PriceAnalyzer
+from scrapers.multi_source import MultiSourceScraper
 from trend_discovery import TrendDiscovery
+
+logger = logging.getLogger(__name__)
 
 def run_system():
     """Run the price tracking system"""
@@ -34,6 +40,7 @@ def run_system():
     
     # Add to database
     print("\n3. Adding products to database...")
+    failures = 0
     for product in products:
         try:
             db.add_product(
@@ -46,8 +53,12 @@ def run_system():
             if product['price']:
                 db.update_price(product['product_id'], product['price'])
             print(f"   Added: {product['name']}")
-        except Exception as e:
-            print(f"   Error: {e}")
+        except (DatabaseError, KeyError):
+            logger.exception("Could not add product %r", product.get('name'))
+            failures += 1
+
+    if failures:
+        raise DatabaseError(f"Failed to add {failures} of {len(products)} discovered products")
     
     # Simulate price changes
     print("\n4. Simulating price changes...")
@@ -92,4 +103,9 @@ def run_system():
         print("Run: python test_discord.py to test Discord separately")
 
 if __name__ == "__main__":
-    run_system()
+    configure_logging()
+    try:
+        run_system()
+    except PriceTrackerError:
+        logger.exception("System run failed")
+        sys.exit(1)

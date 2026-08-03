@@ -1,8 +1,10 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 import random
 import time
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -10,6 +12,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from fake_useragent import UserAgent
+
+from exceptions import ScraperError
+
+logger = logging.getLogger(__name__)
 
 class AdvancedScraper(ABC):
     """Advanced scraper with anti-detection techniques"""
@@ -59,10 +65,10 @@ class AdvancedScraper(ABC):
             self.driver.set_page_load_timeout(30)
             self.driver.implicitly_wait(10)
             
-            print("Advanced scraper initialized with anti-detection")
-        except Exception as e:
-            print(f"Failed to initialize advanced scraper: {e}")
+            logger.info("Advanced scraper initialized with anti-detection")
+        except WebDriverException as exc:
             self.driver = None
+            raise ScraperError(f"Failed to start the Chrome driver: {exc}") from exc
     
     def _random_delay(self, min_seconds=2, max_seconds=5):
         """Add random delay to avoid detection"""
@@ -91,7 +97,8 @@ class AdvancedScraper(ABC):
                 EC.presence_of_element_located((by, value))
             )
             return element.text.strip()
-        except:
+        except (TimeoutException, NoSuchElementException):
+            logger.debug("Element %s=%s not found within %ss", by, value, timeout)
             return None
     
     def _safe_get_element_attribute(self, by, value, attribute, timeout=10):
@@ -101,13 +108,20 @@ class AdvancedScraper(ABC):
                 EC.presence_of_element_located((by, value))
             )
             return element.get_attribute(attribute)
-        except:
+        except (TimeoutException, NoSuchElementException):
+            logger.debug("Element %s=%s not found within %ss", by, value, timeout)
             return None
     
     def close(self):
         """Close the driver"""
-        if self.driver:
-            self.driver.quit()
+        driver = getattr(self, 'driver', None)
+        if driver:
+            try:
+                driver.quit()
+            except WebDriverException:
+                logger.warning("Chrome driver did not shut down cleanly", exc_info=True)
+            finally:
+                self.driver = None
     
     def __del__(self):
         """Cleanup on deletion"""

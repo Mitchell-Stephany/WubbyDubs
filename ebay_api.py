@@ -1,7 +1,11 @@
+import logging
 from typing import Dict, Optional, List
-import requests
 from ebaysdk.finding import Connection as Finding
 from ebaysdk.exception import ConnectionError as EbayConnectionError
+
+from exceptions import EbayAPIError
+
+logger = logging.getLogger(__name__)
 
 class eBayAPI:
     """eBay API for price comparison"""
@@ -20,11 +24,18 @@ class eBayAPI:
                     appid=self.app_id,
                     config_file=None
                 )
-            except Exception as e:
-                print(f"Failed to initialize eBay API: {e}")
+            except EbayConnectionError:
+                # eBay is an optional integration: degrade to fallback mode but make the
+                # failure visible instead of silently pretending it was never configured.
+                logger.error(
+                    "eBay API credentials are set but the client could not be initialised; "
+                    "continuing in fallback mode",
+                    exc_info=True
+                )
+                self.api = None
                 self.enabled = False
         else:
-            print("eBay API not configured - running in fallback mode")
+            logger.info("eBay API not configured - running in fallback mode")
             self.api = None
     
     def get_average_price(self, query: str, category: str = None) -> Optional[float]:
@@ -60,20 +71,17 @@ class eBayAPI:
             for item in items:
                 try:
                     price = float(item.get('sellingStatus', {}).get('currentPrice', {}).get('value', 0))
-                    if price > 0:
-                        total_price += price
-                        count += 1
                 except (ValueError, TypeError):
+                    logger.debug("Skipping eBay item with unparseable price: %r", item.get('itemId'))
                     continue
+                if price > 0:
+                    total_price += price
+                    count += 1
             
             return total_price / count if count > 0 else None
             
-        except EbayConnectionError as e:
-            print(f"eBay API error: {e}")
-            return None
-        except Exception as e:
-            print(f"Error fetching eBay price: {e}")
-            return None
+        except EbayConnectionError as exc:
+            raise EbayAPIError(f"eBay findCompletedItems failed for {query!r}: {exc}") from exc
     
     def get_sold_listings(self, query: str, limit: int = 20) -> List[Dict]:
         """Get recent sold listings for a product"""
@@ -110,16 +118,13 @@ class eBayAPI:
                         'condition': item.get('condition', {}).get('conditionDisplayName', 'Unknown')
                     })
                 except (ValueError, TypeError):
+                    logger.debug("Skipping eBay sold listing with bad price: %r", item.get('itemId'))
                     continue
             
             return listings
             
-        except EbayConnectionError as e:
-            print(f"eBay API error: {e}")
-            return []
-        except Exception as e:
-            print(f"Error fetching eBay listings: {e}")
-            return []
+        except EbayConnectionError as exc:
+            raise EbayAPIError(f"eBay sold-listing lookup failed for {query!r}: {exc}") from exc
     
     def get_current_listings(self, query: str, limit: int = 20) -> List[Dict]:
         """Get current active listings for a product"""
@@ -155,16 +160,13 @@ class eBayAPI:
                         'condition': item.get('condition', {}).get('conditionDisplayName', 'Unknown')
                     })
                 except (ValueError, TypeError):
+                    logger.debug("Skipping eBay listing with bad price: %r", item.get('itemId'))
                     continue
             
             return listings
             
-        except EbayConnectionError as e:
-            print(f"eBay API error: {e}")
-            return []
-        except Exception as e:
-            print(f"Error fetching eBay listings: {e}")
-            return []
+        except EbayConnectionError as exc:
+            raise EbayAPIError(f"eBay active-listing lookup failed for {query!r}: {exc}") from exc
     
     def calculate_potential_profit(self, retail_price: float, ebay_price: float) -> Dict:
         """Calculate potential profit after eBay fees"""

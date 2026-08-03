@@ -3,9 +3,15 @@ Manual product addition tool
 Add specific products to track manually
 """
 
-from database import Database
+import logging
+
 from config import Config
+from database import Database
+from exceptions import PriceTrackerError
+from logging_config import configure_logging
 from scrapers import TargetScraper, HomeDepotScraper
+
+logger = logging.getLogger(__name__)
 
 def add_manual_product():
     """Manually add a product to track"""
@@ -81,12 +87,14 @@ def add_manual_product():
             print("Could not fetch product information")
             print("The retailer may have anti-scraping measures or the product ID is invalid")
             
-    except Exception as e:
-        print(f"Error: {e}")
+    except PriceTrackerError:
+        logger.exception("Could not add %s from %s", product_id, retailer)
         print("The retailer may have anti-scraping measures")
 
 def main():
     """Main function"""
+    configure_logging()
+
     while True:
         add_manual_product()
         

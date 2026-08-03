@@ -1,6 +1,13 @@
+import logging
 from typing import Dict, Optional, List
 import requests
+from exceptions import ScraperError
 from .base import BaseScraper
+
+logger = logging.getLogger(__name__)
+
+# Approximate conversion rates used until a real FX source is wired in
+USD_RATES = {'EUR': 1.1, 'CZK': 0.045, 'PLN': 0.25, 'USD': 1.0}
 
 class ShopteraScraper(BaseScraper):
     """Shoptera scraper for European e-shops - no API key required"""
@@ -14,66 +21,70 @@ class ShopteraScraper(BaseScraper):
                        min_price: float = None, max_price: float = None,
                        limit: int = 20) -> List[Dict]:
         """Search for products across European e-shops"""
+        params = {
+            'q': query,
+            'limit': limit,
+            'fields': 'title,price,currency,product_url,image_url,brand,category,eshop_name,eshop_domain'
+        }
+
+        if category:
+            params['category'] = category
+        if min_price:
+            params['min_price'] = min_price
+        if max_price:
+            params['max_price'] = max_price
+
+        url = f"{self.BASE_URL}/search"
         try:
-            params = {
-                'q': query,
-                'limit': limit,
-                'fields': 'title,price,currency,product_url,image_url,brand,category,eshop_name,eshop_domain'
-            }
-            
-            if category:
-                params['category'] = category
-            if min_price:
-                params['min_price'] = min_price
-            if max_price:
-                params['max_price'] = max_price
-            
-            response = requests.get(
-                f"{self.BASE_URL}/search",
-                params=params,
-                headers=self._get_headers(),
-                timeout=15
-            )
-            response.raise_for_status()
-            
-            data = response.json()
-            products = []
-            
-            for item in data.get('results', []):
-                # Convert price to USD approximately (simplified)
-                price = item.get('price', 0)
-                currency = item.get('currency', 'EUR')
-                
-                # Simple currency conversion (in production, use real API)
-                if currency == 'EUR':
-                    price_usd = price * 1.1  # Approximate EUR to USD
-                elif currency == 'CZK':
-                    price_usd = price * 0.045  # Approximate CZK to USD
-                elif currency == 'PLN':
-                    price_usd = price * 0.25  # Approximate PLN to USD
-                else:
-                    price_usd = price
-                
-                products.append({
-                    'product_id': item.get('product_url', '').split('/')[-1] or str(hash(item.get('title', ''))),
-                    'name': item.get('title', ''),
-                    'url': item.get('product_url', ''),
-                    'category': item.get('category', 'Unknown'),
-                    'price': price_usd,
-                    'retailer': f"shoptera_{item.get('eshop_domain', 'unknown')}",
-                    'original_price': price,
-                    'original_currency': currency,
-                    'brand': item.get('brand', ''),
-                    'image': item.get('image_url', ''),
-                    'eshop_name': item.get('eshop_name', ''),
-                    'eshop_domain': item.get('eshop_domain', '')
-                })
-            
-            return products
-            
-        except Exception as e:
-            print(f"Error searching Shoptera products: {e}")
-            return []
+            data = self._get(url, params=params).json()
+        except requests.RequestException as exc:
+            raise ScraperError(f"Shoptera request to {url} failed: {exc}") from exc
+        except ValueError as exc:
+            raise ScraperError(f"Shoptera returned a non-JSON response from {url}: {exc}") from exc
+
+        products = []
+        skipped = 0
+
+        for item in data.get('results', []):
+            currency = item.get('currency', 'EUR')
+            try:
+                price = float(item.get('price', 0))
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Skipping Shoptera item %r with unparseable price %r",
+                    item.get('title'), item.get('price')
+                )
+                skipped += 1
+                continue
+
+            rate = USD_RATES.get(currency)
+            if rate is None:
+                logger.warning(
+                    "Unknown Shoptera currency %s for %r; using the raw price",
+                    currency, item.get('title')
+                )
+                rate = 1.0
+            price_usd = price * rate
+
+            products.append({
+                'product_id': item.get('product_url', '').split('/')[-1] or str(hash(item.get('title', ''))),
+                'name': item.get('title', ''),
+                'url': item.get('product_url', ''),
+                'category': item.get('category', 'Unknown'),
+                'price': price_usd,
+                'retailer': f"shoptera_{item.get('eshop_domain', 'unknown')}",
+                'original_price': price,
+                'original_currency': currency,
+                'brand': item.get('brand', ''),
+                'image': item.get('image_url', ''),
+                'eshop_name': item.get('eshop_name', ''),
+                'eshop_domain': item.get('eshop_domain', '')
+            })
+
+        if skipped:
+            logger.warning("Skipped %s Shoptera results with invalid prices", skipped)
+
+        return products
     
     def get_product_price(self, product_id: str) -> Optional[float]:
         """Shoptera doesn't have individual product lookup, search needed"""

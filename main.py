@@ -1,74 +1,73 @@
 import asyncio
-import time
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from datetime import datetime
+import logging
+import sys
 import threading
+import time
+from datetime import datetime
+
+from apscheduler.events import EVENT_JOB_ERROR
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import Config
 from database import Database
-from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
-from scrapers.multi_source import MultiSourceScraper
-from ebay_api import eBayAPI
 from discord_bot import DiscordBot
+from ebay_api import eBayAPI
+from exceptions import NotificationError, PriceTrackerError
+from logging_config import configure_logging
 from price_analyzer import PriceAnalyzer
+from scrapers.multi_source import MultiSourceScraper
 from trend_discovery import TrendDiscovery
+
+logger = logging.getLogger(__name__)
 
 class PriceTracker:
     """Main price tracking system"""
     
     def __init__(self):
-        print("Loading configuration...")
         self.config = Config()
-        print("Configuration loaded")
-        
-        print("Initializing database...")
         self.db = Database()
-        print("Database initialized")
-        
+
         # Initialize scrapers
-        print("Initializing scrapers...")
-        print("Using multi-source scraper for reliable product discovery")
+        logger.info("Using multi-source scraper for reliable product discovery")
         self.scrapers = {
             'multi_source': MultiSourceScraper(self.config)
         }
-        
-        # Remove None values
-        self.scrapers = {k: v for k, v in self.scrapers.items() if v is not None}
-        print(f"Scrapers initialized: {list(self.scrapers.keys())}")
-        
-        # Initialize eBay API
-        print("Initializing eBay API...")
+
         self.ebay_api = eBayAPI(self.config)
-        print(f"eBay API initialized (enabled: {self.ebay_api.enabled})")
-        
-        # Initialize components
-        print("Initializing price analyzer...")
+        logger.info("eBay API initialized (enabled: %s)", self.ebay_api.enabled)
+
         self.price_analyzer = PriceAnalyzer(self.config, self.db, self.ebay_api)
-        print("Price analyzer initialized")
-        
-        print("Initializing trend discovery...")
         self.trend_discovery = TrendDiscovery(self.config, self.db)
-        print("Trend discovery initialized")
-        
+
         # Discord bot (will be started in separate thread)
-        print("Initializing Discord bot...")
         self.discord_bot = DiscordBot(self.config)
         self.discord_thread = None
-        print("Discord bot initialized")
-        
-        # Scheduler
-        print("Initializing scheduler...")
+
         self.scheduler = AsyncIOScheduler()
-        print("Scheduler initialized")
-        
-        print("PriceTracker initialization complete")
-    
+        self.scheduler.add_listener(self._on_job_error, EVENT_JOB_ERROR)
+
+        logger.info("PriceTracker initialization complete")
+
+    @staticmethod
+    def _on_job_error(event):
+        """APScheduler swallows job exceptions by default; surface them with a traceback."""
+        logger.error(
+            "Scheduled job %s raised an exception", event.job_id,
+            exc_info=event.exception
+        )
+
     def start_discord_bot(self):
         """Start Discord bot in a separate thread"""
         def run_bot():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(self.discord_bot.start_bot())
+            try:
+                loop.run_until_complete(self.discord_bot.start_bot())
+            except Exception:
+                # The thread would otherwise die silently, leaving notifications broken.
+                logger.exception("Discord bot thread stopped with an error")
+            finally:
+                loop.close()
         
         self.discord_thread = threading.Thread(target=run_bot, daemon=True)
         self.discord_thread.start()
@@ -78,16 +77,20 @@ class PriceTracker:
     
     async def check_prices(self):
         """Check prices for all tracked products"""
-        print(f"\n[{datetime.now()}] Starting price check...")
+        logger.info("Starting price check...")
         
         products = self.db.get_all_products()
-        print(f"Checking {len(products)} products...")
+        logger.info("Checking %s products...", len(products))
+        failures = 0
         
         for product in products:
             retailer = product['retailer']
             product_id = product['product_id']
             
             if retailer not in self.scrapers:
+                logger.warning(
+                    "No scraper for retailer %s (product %s)", retailer, product_id
+                )
                 continue
             
             scraper = self.scrapers[retailer]
@@ -97,50 +100,60 @@ class PriceTracker:
                 
                 if current_price:
                     self.db.update_price(product_id, current_price)
-                    print(f"Updated price for {product['name']}: ${current_price:.2f}")
+                    logger.info("Updated price for %s: $%.2f", product['name'], current_price)
                 else:
-                    print(f"Could not fetch price for {product['name']}")
+                    logger.warning("Could not fetch price for %s", product['name'])
                     
-            except Exception as e:
-                print(f"Error checking price for {product['name']}: {e}")
+            except PriceTrackerError:
+                logger.exception("Error checking price for %s", product['name'])
+                failures += 1
         
-        print("Price check completed")
+        if failures:
+            logger.error("Price check failed for %s of %s products", failures, len(products))
+        logger.info("Price check completed")
     
     async def analyze_and_notify(self):
         """Analyze price changes and send notifications"""
-        print(f"\n[{datetime.now()}] Analyzing price changes...")
+        logger.info("Analyzing price changes...")
         
         deals = self.price_analyzer.analyze_all_products()
         
-        if deals:
-            print(f"Found {len(deals)} profitable deals!")
-            
-            # Wait for Discord bot to be ready
-            await self.discord_bot.wait_until_ready()
-            
-            for deal in deals:
-                try:
-                    await self.discord_bot.send_deal_notification(deal)
-                    # Small delay to avoid rate limiting
-                    await asyncio.sleep(1)
-                except Exception as e:
-                    print(f"Error sending notification: {e}")
-        else:
-            print("No new profitable deals found")
+        if not deals:
+            logger.info("No new profitable deals found")
+            return
+
+        logger.info("Found %s profitable deals!", len(deals))
+
+        if not self.config.DISCORD_BOT_TOKEN:
+            logger.warning("Discord is not configured; %s deals were not sent", len(deals))
+            return
+
+        # Wait for Discord bot to be ready; raises instead of hanging forever
+        await self.discord_bot.wait_until_ready()
+
+        failures = 0
+        for deal in deals:
+            try:
+                await self.discord_bot.deliver_deal(deal)
+                # Small delay to avoid rate limiting
+                await asyncio.sleep(1)
+            except NotificationError:
+                logger.exception("Error sending notification for %s", deal.get('name'))
+                failures += 1
+
+        if failures:
+            logger.error("Failed to deliver %s of %s deal notifications", failures, len(deals))
     
     async def discover_new_products(self):
         """Discover and add new trending products"""
-        print(f"\n[{datetime.now()}] Discovering new products...")
+        logger.info("Discovering new products...")
         
-        try:
-            added = self.trend_discovery.refresh_product_pool(max_products=30)
-            print(f"Added {added} new products to track")
-            if added == 0:
-                print("Note: Scrapers may be blocked by anti-bot measures")
-                print("Consider using official APIs for reliable data access")
-        except Exception as e:
-            print(f"Error discovering new products: {e}")
-            print("Note: This is expected if retailers have anti-scraping measures")
+        added = self.trend_discovery.refresh_product_pool(max_products=30)
+        logger.info("Added %s new products to track", added)
+        if added == 0:
+            logger.warning(
+                "No products were added; scrapers may be blocked by anti-bot measures"
+            )
     
     def setup_scheduler(self):
         """Setup the scheduled tasks"""
@@ -178,60 +191,72 @@ class PriceTracker:
     
     async def run(self):
         """Main run loop"""
-        print("Starting Price Arbitrage Tracker...")
+        logger.info("Starting Price Arbitrage Tracker...")
         
         # Start Discord bot
         if self.config.DISCORD_BOT_TOKEN:
-            print("Starting Discord bot...")
             self.start_discord_bot()
         else:
-            print("No Discord token configured, skipping bot startup")
+            logger.warning("No Discord token configured, skipping bot startup")
         
-        # Setup scheduler
         self.setup_scheduler()
-        
-        # Start scheduler
         self.scheduler.start()
-        print("Scheduler started")
+        logger.info("Scheduler started")
         
         # Keep the bot running
         try:
             while True:
                 await asyncio.sleep(60)
-        except KeyboardInterrupt:
-            print("Shutting down...")
-            self.scheduler.shutdown()
-            
-            # Cleanup advanced scrapers
-            if self.config.ADVANCED_SCRAPING:
-                print("Closing advanced scrapers...")
-                for scraper in self.scrapers.values():
-                    if hasattr(scraper, 'close'):
-                        scraper.close()
-            
-            if self.discord_thread and self.discord_thread.is_alive():
-                # Stop the Discord bot
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(self.discord_bot.close())
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            logger.info("Shutting down...")
+        finally:
+            await self.shutdown()
+
+    async def shutdown(self):
+        """Stop the scheduler, scrapers and Discord client."""
+        if self.scheduler.running:
+            self.scheduler.shutdown(wait=False)
+
+        for name, scraper in self.scrapers.items():
+            if not hasattr(scraper, 'close'):
+                continue
+            try:
+                scraper.close()
+            except Exception:
+                logger.exception("Error closing scraper %s", name)
+
+        bot_loop = self.discord_bot.bot_loop
+        if bot_loop is not None and not self.discord_bot.is_closed():
+            try:
+                await asyncio.wrap_future(
+                    asyncio.run_coroutine_threadsafe(self.discord_bot.close(), bot_loop)
+                )
+            except Exception:
+                logger.exception("Error closing the Discord client")
 
 def main():
     """Main entry point"""
-    print("Initializing Price Tracker...")
-    tracker = PriceTracker()
-    print("Price Tracker initialized successfully")
-    
-    # Run the async main function
-    print("Starting async loop...")
+    configure_logging()
+
+    try:
+        tracker = PriceTracker()
+    except PriceTrackerError:
+        logger.exception("Price Tracker could not start")
+        return 1
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
     try:
-        print("Running tracker...")
         loop.run_until_complete(tracker.run())
     except KeyboardInterrupt:
-        print("\nShutting down gracefully...")
+        logger.info("Shutting down gracefully...")
+    except Exception:
+        logger.exception("Price Tracker stopped with an unhandled error")
+        return 1
     finally:
         loop.close()
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

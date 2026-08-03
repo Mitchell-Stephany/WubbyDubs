@@ -1,16 +1,35 @@
+import logging
 import sqlite3
-from datetime import datetime
+from contextlib import contextmanager
 from typing import List, Dict, Optional
-import json
+
+from exceptions import DatabaseError
+
+logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self, db_path: str = 'price_tracker.db'):
         self.db_path = db_path
         self.init_database()
-    
+
+    @contextmanager
+    def _connect(self, row_factory=None):
+        """Open a connection that is always closed, converting sqlite errors to DatabaseError."""
+        conn = sqlite3.connect(self.db_path)
+        if row_factory is not None:
+            conn.row_factory = row_factory
+        try:
+            yield conn
+            conn.commit()
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise DatabaseError(f"Database operation failed on {self.db_path}: {exc}") from exc
+        finally:
+            conn.close()
+
     def init_database(self):
         """Initialize database tables"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             
             # Products table
@@ -60,25 +79,22 @@ class Database:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_product_id ON price_history(product_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON price_history(timestamp)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_deals_timestamp ON deals(timestamp)')
-            
-            conn.commit()
     
     def add_product(self, product_id: str, retailer: str, name: str, 
                    url: str, category: str = None) -> int:
         """Add a new product to track"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT OR REPLACE INTO products 
                 (product_id, retailer, name, url, category, last_checked)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ''', (product_id, retailer, name, url, category))
-            conn.commit()
             return cursor.lastrowid
     
     def update_price(self, product_id: str, price: float):
         """Record a new price for a product"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO price_history (product_id, price, timestamp)
@@ -90,12 +106,10 @@ class Database:
                 UPDATE products SET last_checked = CURRENT_TIMESTAMP
                 WHERE product_id = ?
             ''', (product_id,))
-            
-            conn.commit()
     
     def get_latest_price(self, product_id: str) -> Optional[float]:
         """Get the most recent price for a product"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT price FROM price_history
@@ -108,7 +122,7 @@ class Database:
     
     def get_previous_price(self, product_id: str) -> Optional[float]:
         """Get the second most recent price for comparison"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT price FROM price_history
@@ -121,8 +135,7 @@ class Database:
     
     def get_price_history(self, product_id: str, limit: int = 100) -> List[Dict]:
         """Get price history for a product"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self._connect(row_factory=sqlite3.Row) as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT price, timestamp FROM price_history
@@ -136,7 +149,7 @@ class Database:
                    drop_percentage: float, ebay_price: float = None,
                    potential_profit: float = None, profit_percentage: float = None):
         """Record a discovered deal"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO deals 
@@ -145,27 +158,25 @@ class Database:
                 VALUES (?, ?, ?, ?, ?, ?, ?, FALSE)
             ''', (product_id, original_price, new_price, drop_percentage,
                  ebay_price, potential_profit, profit_percentage))
-            conn.commit()
     
     def get_all_products(self) -> List[Dict]:
         """Get all tracked products"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self._connect(row_factory=sqlite3.Row) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM products')
             return [dict(row) for row in cursor.fetchall()]
     
     def get_products_by_retailer(self, retailer: str) -> List[Dict]:
         """Get products from a specific retailer"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self._connect(row_factory=sqlite3.Row) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM products WHERE retailer = ?', (retailer,))
             return [dict(row) for row in cursor.fetchall()]
     
     def mark_deal_notified(self, deal_id: int):
         """Mark a deal as having been notified"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute('UPDATE deals SET notified = TRUE WHERE id = ?', (deal_id,))
-            conn.commit()
+            if cursor.rowcount == 0:
+                logger.warning("No deal with id %s to mark as notified", deal_id)

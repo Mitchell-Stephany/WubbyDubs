@@ -1,7 +1,11 @@
+import logging
 from typing import Dict, List, Optional
 from database import Database
 from ebay_api import eBayAPI
 from config import Config
+from exceptions import EbayAPIError
+
+logger = logging.getLogger(__name__)
 
 class PriceAnalyzer:
     """Analyzes price changes and calculates profit potential"""
@@ -37,9 +41,16 @@ class PriceAnalyzer:
         if not product:
             return None
         
-        # Check eBay prices (if available)
+        # Check eBay prices (if available); a failing eBay lookup must not lose the price drop
         product_name = product['name']
-        ebay_price = self.ebay.get_average_price(product_name)
+        try:
+            ebay_price = self.ebay.get_average_price(product_name)
+        except EbayAPIError:
+            logger.warning(
+                "eBay lookup failed for %r; analysing without eBay data", product_name,
+                exc_info=True
+            )
+            ebay_price = None
         
         # Calculate profit potential
         profit_info = {}
@@ -103,15 +114,25 @@ class PriceAnalyzer:
         products = self.db.get_all_products()
         deals = []
         
+        failures = 0
+
         for product in products:
             product_id = product['product_id']
-            current_price = self.db.get_latest_price(product_id)
-            
-            if current_price:
-                deal = self.analyze_price_change(product_id, current_price)
-                if deal:
-                    deals.append(deal)
-        
+            try:
+                current_price = self.db.get_latest_price(product_id)
+
+                if current_price:
+                    deal = self.analyze_price_change(product_id, current_price)
+                    if deal:
+                        deals.append(deal)
+            except Exception:
+                # Keep analysing the remaining products, but never discard the error.
+                logger.exception("Failed to analyse product %s", product_id)
+                failures += 1
+
+        if failures:
+            logger.error("Price analysis failed for %s of %s products", failures, len(products))
+
         return deals
     
     def get_significant_drops(self, min_drop_percentage: float = 20) -> List[Dict]:
