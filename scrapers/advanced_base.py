@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 import random
 import time
 from selenium import webdriver
@@ -10,6 +10,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from fake_useragent import UserAgent
+
+from utils import build_headers, parse_price
 
 class AdvancedScraper(ABC):
     """Advanced scraper with anti-detection techniques"""
@@ -71,18 +73,15 @@ class AdvancedScraper(ABC):
     
     def _random_headers(self) -> Dict[str, str]:
         """Generate random headers"""
-        return {
-            'User-Agent': self.ua.random,
+        return build_headers(self.ua.random, {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
             'Cache-Control': 'max-age=0',
-        }
+        })
     
     def _safe_get_element_text(self, by, value, timeout=10):
         """Safely get element text with timeout"""
@@ -103,6 +102,41 @@ class AdvancedScraper(ABC):
             return element.get_attribute(attribute)
         except:
             return None
+    
+    def _load_page(self, url: str, min_delay: float = 3, max_delay: float = 6):
+        """Navigate to a URL and wait a random amount of time"""
+        self.driver.get(url)
+        self._random_delay(min_delay, max_delay)
+    
+    def _find_price(self, selectors: List[Tuple[str, str]], timeout: int = 5) -> Optional[float]:
+        """Return the first price found using any of the given locators"""
+        for by, selector in selectors:
+            price = parse_price(self._safe_get_element_text(by, selector, timeout=timeout))
+            if price is not None:
+                return price
+        return None
+    
+    def _element_price(self, element, by, selector) -> Optional[float]:
+        """Return the price shown inside a child of the given element"""
+        try:
+            return parse_price(element.find_element(by, selector).text)
+        except Exception:
+            return None
+    
+    def _element_text(self, element, by, selector, default: str = "Unknown") -> str:
+        """Return the text of a child of the given element"""
+        try:
+            return element.find_element(by, selector).text.strip() or default
+        except Exception:
+            return default
+    
+    def _last_element_text(self, by, selector, default: str = "Unknown") -> str:
+        """Return the text of the last matching element, used for breadcrumbs"""
+        try:
+            elements = self.driver.find_elements(by, selector)
+            return elements[-1].text.strip() if elements else default
+        except Exception:
+            return default
     
     def close(self):
         """Close the driver"""

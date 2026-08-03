@@ -1,11 +1,27 @@
 from typing import Dict, Optional, List
-import requests
 from .base import BaseScraper
+from utils import build_product_record, pick_search_term
 
 class ShopteraScraper(BaseScraper):
     """Shoptera scraper for European e-shops - no API key required"""
     
     BASE_URL = "https://shoptera.ai/api/v1"
+    
+    SEARCH_TIMEOUT = 15
+    
+    # Approximate conversion rates (in production, use a real currency API)
+    USD_RATES = {
+        'EUR': 1.1,
+        'CZK': 0.045,
+        'PLN': 0.25,
+    }
+    
+    POPULAR_SEARCHES = [
+        'electronics', 'smartphone', 'laptop', 'headphones',
+        'kitchen', 'blender', 'coffee maker',
+        'furniture', 'sofa', 'chair',
+        'clothing', 'jacket', 'shoes'
+    ]
     
     def __init__(self, config):
         super().__init__(config)
@@ -28,52 +44,38 @@ class ShopteraScraper(BaseScraper):
             if max_price:
                 params['max_price'] = max_price
             
-            response = requests.get(
-                f"{self.BASE_URL}/search",
-                params=params,
-                headers=self._get_headers(),
-                timeout=15
-            )
-            response.raise_for_status()
-            
-            data = response.json()
+            data = self._get_json(f"{self.BASE_URL}/search", params=params, timeout=self.SEARCH_TIMEOUT)
             products = []
             
             for item in data.get('results', []):
-                # Convert price to USD approximately (simplified)
                 price = item.get('price', 0)
                 currency = item.get('currency', 'EUR')
                 
-                # Simple currency conversion (in production, use real API)
-                if currency == 'EUR':
-                    price_usd = price * 1.1  # Approximate EUR to USD
-                elif currency == 'CZK':
-                    price_usd = price * 0.045  # Approximate CZK to USD
-                elif currency == 'PLN':
-                    price_usd = price * 0.25  # Approximate PLN to USD
-                else:
-                    price_usd = price
-                
-                products.append({
-                    'product_id': item.get('product_url', '').split('/')[-1] or str(hash(item.get('title', ''))),
-                    'name': item.get('title', ''),
-                    'url': item.get('product_url', ''),
-                    'category': item.get('category', 'Unknown'),
-                    'price': price_usd,
-                    'retailer': f"shoptera_{item.get('eshop_domain', 'unknown')}",
-                    'original_price': price,
-                    'original_currency': currency,
-                    'brand': item.get('brand', ''),
-                    'image': item.get('image_url', ''),
-                    'eshop_name': item.get('eshop_name', ''),
-                    'eshop_domain': item.get('eshop_domain', '')
-                })
+                products.append(build_product_record(
+                    product_id=item.get('product_url', '').split('/')[-1] or str(hash(item.get('title', ''))),
+                    name=item.get('title', ''),
+                    url=item.get('product_url', ''),
+                    category=item.get('category', 'Unknown'),
+                    price=self._to_usd(price, currency),
+                    retailer=f"shoptera_{item.get('eshop_domain', 'unknown')}",
+                    original_price=price,
+                    original_currency=currency,
+                    brand=item.get('brand', ''),
+                    image=item.get('image_url', ''),
+                    eshop_name=item.get('eshop_name', ''),
+                    eshop_domain=item.get('eshop_domain', '')
+                ))
             
             return products
             
         except Exception as e:
             print(f"Error searching Shoptera products: {e}")
             return []
+    
+    @classmethod
+    def _to_usd(cls, price: float, currency: str) -> float:
+        """Convert a price to an approximate USD amount"""
+        return price * cls.USD_RATES.get(currency, 1)
     
     def get_product_price(self, product_id: str) -> Optional[float]:
         """Shoptera doesn't have individual product lookup, search needed"""
@@ -86,18 +88,7 @@ class ShopteraScraper(BaseScraper):
     
     def get_trending_products(self, category: str = None, limit: int = 20) -> List[Dict]:
         """Get trending products (using popular search terms)"""
-        popular_searches = [
-            'electronics', 'smartphone', 'laptop', 'headphones',
-            'kitchen', 'blender', 'coffee maker',
-            'furniture', 'sofa', 'chair',
-            'clothing', 'jacket', 'shoes'
-        ]
-        
-        if category:
-            search_term = category
-        else:
-            search_term = popular_searches[0]
-        
+        search_term = pick_search_term(category, self.POPULAR_SEARCHES)
         return self.search_products(search_term, category=category, limit=limit)
     
     def get_categories(self) -> List[str]:

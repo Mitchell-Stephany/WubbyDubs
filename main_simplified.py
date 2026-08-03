@@ -10,7 +10,7 @@ from database import Database
 from scrapers.multi_source import MultiSourceScraper
 from ebay_api import eBayAPI
 from discord_bot import DiscordBot
-from price_analyzer import PriceAnalyzer
+from price_analyzer import PriceAnalyzer, update_tracked_prices
 from trend_discovery import TrendDiscovery
 
 class SimplifiedPriceTracker:
@@ -27,6 +27,10 @@ class SimplifiedPriceTracker:
         self.discord_bot = DiscordBot(self.config)
         print("Price Tracker initialized")
     
+    def _fetch_price(self, product):
+        """Fetch the current price of a product"""
+        return self.scraper.get_product_price(product['product_id'])
+    
     def check_and_notify(self):
         """Check prices and send notifications"""
         print(f"\n[{datetime.now()}] Starting price check...")
@@ -35,14 +39,7 @@ class SimplifiedPriceTracker:
         products = self.db.get_all_products()
         print(f"Checking {len(products)} products...")
         
-        for product in products:
-            try:
-                current_price = self.scraper.get_product_price(product['product_id'])
-                if current_price:
-                    self.db.update_price(product['product_id'], current_price)
-                    print(f"Updated price for {product['name']}: ${current_price:.2f}")
-            except Exception as e:
-                print(f"Error checking price for {product['name']}: {e}")
+        update_tracked_prices(self.db, products, self._fetch_price)
         
         # Analyze for deals
         print("Analyzing for deals...")
@@ -82,10 +79,7 @@ class SimplifiedPriceTracker:
         if products:
             try:
                 # Get latest prices and analyze
-                for product in products:
-                    current_price = self.scraper.get_product_price(product['product_id'])
-                    if current_price:
-                        self.db.update_price(product['product_id'], current_price)
+                update_tracked_prices(self.db, products, self._fetch_price)
                 
                 deals = self.price_analyzer.analyze_all_products()
                 

@@ -10,7 +10,7 @@ from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
 from scrapers.multi_source import MultiSourceScraper
 from ebay_api import eBayAPI
 from discord_bot import DiscordBot
-from price_analyzer import PriceAnalyzer
+from price_analyzer import PriceAnalyzer, update_tracked_prices
 from trend_discovery import TrendDiscovery
 
 class PriceTracker:
@@ -83,28 +83,14 @@ class PriceTracker:
         products = self.db.get_all_products()
         print(f"Checking {len(products)} products...")
         
-        for product in products:
-            retailer = product['retailer']
-            product_id = product['product_id']
-            
-            if retailer not in self.scrapers:
-                continue
-            
-            scraper = self.scrapers[retailer]
-            
-            try:
-                current_price = scraper.get_product_price(product_id)
-                
-                if current_price:
-                    self.db.update_price(product_id, current_price)
-                    print(f"Updated price for {product['name']}: ${current_price:.2f}")
-                else:
-                    print(f"Could not fetch price for {product['name']}")
-                    
-            except Exception as e:
-                print(f"Error checking price for {product['name']}: {e}")
+        products = [p for p in products if p['retailer'] in self.scrapers]
+        update_tracked_prices(self.db, products, self._fetch_price)
         
         print("Price check completed")
+    
+    def _fetch_price(self, product):
+        """Fetch the current price of a product from its retailer's scraper"""
+        return self.scrapers[product['retailer']].get_product_price(product['product_id'])
     
     async def analyze_and_notify(self):
         """Analyze price changes and send notifications"""
