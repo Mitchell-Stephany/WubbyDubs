@@ -6,7 +6,8 @@ A Python-based system that tracks pricing data from major retailers (Best Buy, T
 
 - **Multi-Retailer Tracking**: Supports Best Buy (API), Target (web scraping), Home Depot (web scraping)
 - **Real-Time Price Monitoring**: Configurable check intervals (default: 5 minutes)
-- **eBay Price Comparison**: Uses eBay API to compare retail prices against market value
+- **eBay Price Comparison**: Uses eBay API to compare retail prices against market value (optional)
+- **Fallback Mode**: Works without eBay API by alerting on significant price drops
 - **Profit Calculation**: Automatically calculates potential profit after eBay fees and shipping costs
 - **Discord Notifications**: Real-time alerts for profitable deals
 - **Trend Discovery**: Automatically discovers trending products to track
@@ -38,16 +39,16 @@ cp .env.example .env
 Edit `.env` with your values:
 
 ```env
-# Discord Bot Configuration
+# Discord Bot Configuration (Required)
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
 DISCORD_CHANNEL_ID=your_channel_id_here
 
-# eBay API Configuration
+# eBay API Configuration (Optional - for profit calculations)
 EBAY_APP_ID=your_ebay_app_id_here
 EBAY_CERT_ID=your_ebay_cert_id_here
 EBAY_DEV_ID=your_ebay_dev_id_here
 
-# Best Buy API Configuration
+# Best Buy API Configuration (Optional - for Best Buy API access)
 BEST_BUY_API_KEY=your_best_buy_api_key_here
 
 # Configuration
@@ -55,6 +56,8 @@ CHECK_INTERVAL_MINUTES=5
 MIN_PROFIT_PERCENTAGE=15
 EBAY_FEE_PERCENTAGE=13
 ```
+
+**Note**: The system works without eBay API by using price drop percentage as the alert threshold. With eBay API, it calculates actual profit potential.
 
 ### 3. Get API Credentials
 
@@ -94,6 +97,7 @@ The system will:
 
 ### How It Works
 
+**With eBay API:**
 1. **Product Discovery**: The system automatically discovers trending products from supported retailers
 2. **Price Monitoring**: Checks prices every 5 minutes (configurable)
 3. **Price Comparison**: Compares retail prices against eBay sold listings
@@ -101,9 +105,13 @@ The system will:
    - eBay fees (default 13%)
    - Estimated shipping costs ($15 default)
    - Retail price
-5. **Notifications**: Sends Discord alerts when:
-   - Profit percentage exceeds minimum threshold (default 15%)
-   - OR price drop exceeds 30%
+5. **Notifications**: Sends Discord alerts when profit percentage exceeds minimum threshold (default 15%)
+
+**Without eBay API (Fallback Mode):**
+1. **Product Discovery**: Discovers trending products from supported retailers
+2. **Price Monitoring**: Checks prices every 5 minutes (configurable)
+3. **Price Drop Detection**: Monitors for significant price drops
+4. **Notifications**: Sends Discord alerts when price drop exceeds minimum threshold (default 15%)
 
 ## Configuration
 

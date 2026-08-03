@@ -26,10 +26,13 @@ class Config:
     MIN_PROFIT_PERCENTAGE = float(os.getenv('MIN_PROFIT_PERCENTAGE', 15))
     EBAY_FEE_PERCENTAGE = float(os.getenv('EBAY_FEE_PERCENTAGE', 13))
     
-    # Retailers to track (expanded with new free APIs)
-    RETAILERS = ['bestbuy', 'target', 'homedepot', 'shopscout', 'shoptera']
+    # Retailers to track (focus on working scrapers)
+    RETAILERS = ['bestbuy', 'target', 'homedepot']
     
-    # Shopify stores for ShopScout
+    # Note: Free APIs (ShopScout, Shoptera) are available but may require updates
+    # System will focus on web scraping for reliable data
+    
+    # Shopify stores for ShopScout (if API becomes available)
     SHOPIFY_STORES = [
         'gymshark.com',
         'allbirds.com', 
