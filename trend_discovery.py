@@ -11,13 +11,8 @@ class TrendDiscovery:
         self.config = config
         self.db = database
         
-        # Initialize scrapers based on configuration
-        self.scrapers = {
-            'multi_source': MultiSourceScraper(config)
-        }
-        
-        # Remove None values
-        self.scrapers = {k: v for k, v in self.scrapers.items() if v is not None}
+        # DISABLED - No automatic fake product discovery
+        self.scrapers = {}
         
         # Popular search terms for different categories
         self.search_terms = {

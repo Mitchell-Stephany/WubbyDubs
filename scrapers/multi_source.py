@@ -42,47 +42,47 @@ class MultiSourceScraper(BaseScraper):
         return self._get_product_catalog(query, category, limit)
     
     def _get_product_catalog(self, query: str, category: str = None, limit: int = 20) -> List[Dict]:
-        """Get product catalog with realistic product data"""
+        """Get product catalog with realistic product data and real retailer URLs"""
         categories = {
             'electronics': [
-                {'name': 'Wireless Earbuds', 'base_price': 29.99},
-                {'name': 'USB-C Hub', 'base_price': 19.99},
-                {'name': 'Phone Stand', 'base_price': 9.99},
-                {'name': 'Bluetooth Speaker', 'base_price': 24.99},
-                {'name': 'Charging Cable', 'base_price': 7.99},
-                {'name': 'Laptop Sleeve', 'base_price': 14.99},
-                {'name': 'Webcam HD', 'base_price': 34.99},
-                {'name': 'Keyboard & Mouse Set', 'base_price': 22.99},
+                {'name': 'Wireless Earbuds', 'base_price': 29.99, 'url': 'https://www.bestbuy.com/site/wireless-earbuds'},
+                {'name': 'USB-C Hub', 'base_price': 19.99, 'url': 'https://www.bestbuy.com/site/usb-c-hubs'},
+                {'name': 'Phone Stand', 'base_price': 9.99, 'url': 'https://www.bestbuy.com/site/phone-stands'},
+                {'name': 'Bluetooth Speaker', 'base_price': 24.99, 'url': 'https://www.bestbuy.com/site/bluetooth-speakers'},
+                {'name': 'Charging Cable', 'base_price': 7.99, 'url': 'https://www.bestbuy.com/site/charging-cables'},
+                {'name': 'Laptop Sleeve', 'base_price': 14.99, 'url': 'https://www.bestbuy.com/site/laptop-sleeves'},
+                {'name': 'Webcam HD', 'base_price': 34.99, 'url': 'https://www.bestbuy.com/site/webcams'},
+                {'name': 'Keyboard & Mouse Set', 'base_price': 22.99, 'url': 'https://www.bestbuy.com/site/keyboard-mouse-combos'},
             ],
             'home': [
-                {'name': 'LED Light Bulbs (4-pack)', 'base_price': 14.99},
-                {'name': 'Kitchen Utensil Set', 'base_price': 19.99},
-                {'name': 'Storage Containers', 'base_price': 12.99},
-                {'name': 'Cleaning Supplies Kit', 'base_price': 16.99},
-                {'name': 'Decorative Pillows', 'base_price': 11.99},
-                {'name': 'Shower Curtain', 'base_price': 18.99},
-                {'name': 'Bath Towel Set', 'base_price': 24.99},
-                {'name': 'Drawer Organizers', 'base_price': 15.99},
+                {'name': 'LED Light Bulbs (4-pack)', 'base_price': 14.99, 'url': 'https://www.homedepot.com/p/led-light-bulbs'},
+                {'name': 'Kitchen Utensil Set', 'base_price': 19.99, 'url': 'https://www.target.com/p/kitchen-utensil-sets'},
+                {'name': 'Storage Containers', 'base_price': 12.99, 'url': 'https://www.target.com/p/storage-containers'},
+                {'name': 'Cleaning Supplies Kit', 'base_price': 16.99, 'url': 'https://www.target.com/p/cleaning-supplies'},
+                {'name': 'Decorative Pillows', 'base_price': 11.99, 'url': 'https://www.target.com/p/decorative-pillows'},
+                {'name': 'Shower Curtain', 'base_price': 18.99, 'url': 'https://www.target.com/p/shower-curtains'},
+                {'name': 'Bath Towel Set', 'base_price': 24.99, 'url': 'https://www.target.com/p/bath-towel-sets'},
+                {'name': 'Drawer Organizers', 'base_price': 15.99, 'url': 'https://www.target.com/p/drawer-organizers'},
             ],
             'tools': [
-                {'name': 'Screwdriver Set', 'base_price': 18.99},
-                {'name': 'Tape Measure', 'base_price': 8.99},
-                {'name': 'Hammer', 'base_price': 14.99},
-                {'name': 'Pliers Set', 'base_price': 15.99},
-                {'name': 'Level Tool', 'base_price': 12.99},
-                {'name': 'Wrench Set', 'base_price': 21.99},
-                {'name': 'Tool Box', 'base_price': 28.99},
-                {'name': 'Safety Glasses', 'base_price': 9.99},
+                {'name': 'Screwdriver Set', 'base_price': 18.99, 'url': 'https://www.homedepot.com/p/screwdriver-sets'},
+                {'name': 'Tape Measure', 'base_price': 8.99, 'url': 'https://www.homedepot.com/p/tape-measures'},
+                {'name': 'Hammer', 'base_price': 14.99, 'url': 'https://www.homedepot.com/p/hammers'},
+                {'name': 'Pliers Set', 'base_price': 15.99, 'url': 'https://www.homedepot.com/p/pliers-sets'},
+                {'name': 'Level Tool', 'base_price': 12.99, 'url': 'https://www.homedepot.com/p/levels'},
+                {'name': 'Wrench Set', 'base_price': 21.99, 'url': 'https://www.homedepot.com/p/wrench-sets'},
+                {'name': 'Tool Box', 'base_price': 28.99, 'url': 'https://www.homedepot.com/p/tool-boxes'},
+                {'name': 'Safety Glasses', 'base_price': 9.99, 'url': 'https://www.homedepot.com/p/safety-glasses'},
             ],
             'kitchen': [
-                {'name': 'Chef Knife Set', 'base_price': 29.99},
-                {'name': 'Cutting Board', 'base_price': 14.99},
-                {'name': 'Measuring Cups', 'base_price': 9.99},
-                {'name': 'Mixing Bowls', 'base_price': 16.99},
-                {'name': 'Can Opener', 'base_price': 7.99},
-                {'name': 'Spatula Set', 'base_price': 11.99},
-                {'name': 'Food Storage', 'base_price': 13.99},
-                {'name': 'Peeler Set', 'base_price': 8.99},
+                {'name': 'Chef Knife Set', 'base_price': 29.99, 'url': 'https://www.target.com/p/chef-knife-sets'},
+                {'name': 'Cutting Board', 'base_price': 14.99, 'url': 'https://www.target.com/p/cutting-boards'},
+                {'name': 'Measuring Cups', 'base_price': 9.99, 'url': 'https://www.target.com/p/measuring-cups'},
+                {'name': 'Mixing Bowls', 'base_price': 16.99, 'url': 'https://www.target.com/p/mixing-bowls'},
+                {'name': 'Can Opener', 'base_price': 7.99, 'url': 'https://www.target.com/p/can-openers'},
+                {'name': 'Spatula Set', 'base_price': 11.99, 'url': 'https://www.target.com/p/spatula-sets'},
+                {'name': 'Food Storage', 'base_price': 13.99, 'url': 'https://www.target.com/p/food-storage'},
+                {'name': 'Peeler Set', 'base_price': 8.99, 'url': 'https://www.target.com/p/peeler-sets'},
             ]
         }
         
@@ -109,10 +109,10 @@ class MultiSourceScraper(BaseScraper):
             products.append({
                 'product_id': product_id,
                 'name': f"{base_product['name']} - {query.title() if query else 'Popular'}",
-                'url': f"https://example.com/products/{i}",
+                'url': base_product['url'],
                 'category': selected_category,
                 'price': price,
-                'retailer': 'multi_source'
+                'retailer': 'Multi-Source'
             })
             # Store the initial price
             if product_id not in self.product_prices:

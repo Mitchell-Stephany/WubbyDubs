@@ -29,8 +29,8 @@ class Config:
     MIN_PROFIT_PERCENTAGE = float(os.getenv('MIN_PROFIT_PERCENTAGE', 15))
     EBAY_FEE_PERCENTAGE = float(os.getenv('EBAY_FEE_PERCENTAGE', 13))
     
-    # Retailers to track (using multi-source approach for reliability)
-    RETAILERS = ['multi_source']  # Using multi-source for reliable product discovery
+    # Retailers to track (DISABLED - only manual products allowed)
+    RETAILERS = []  # No automatic fake products - manual entry only
     
     # Note: Web scraping may face anti-bot measures from retailers
     # Consider using official APIs when available

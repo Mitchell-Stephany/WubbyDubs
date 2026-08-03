@@ -25,15 +25,10 @@ class PriceTracker:
         self.db = Database()
         print("Database initialized")
         
-        # Initialize scrapers
-        print("Initializing scrapers...")
-        print("Using multi-source scraper for reliable product discovery")
-        self.scrapers = {
-            'multi_source': MultiSourceScraper(self.config)
-        }
-        
-        # Remove None values
-        self.scrapers = {k: v for k, v in self.scrapers.items() if v is not None}
+        # Initialize scrapers (DISABLED - no fake products)
+        print("Automatic product discovery DISABLED")
+        print("Use real_products_only.py to add real products manually")
+        self.scrapers = {}
         print(f"Scrapers initialized: {list(self.scrapers.keys())}")
         
         # Initialize eBay API
