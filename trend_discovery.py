@@ -1,5 +1,6 @@
 from typing import List, Dict
 from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
+from scrapers.multi_source import MultiSourceScraper
 from database import Database
 import random
 
@@ -9,10 +10,10 @@ class TrendDiscovery:
     def __init__(self, config, database: Database):
         self.config = config
         self.db = database
+        
+        # Initialize scrapers based on configuration
         self.scrapers = {
-            'bestbuy': BestBuyScraper(config) if config.BEST_BUY_ENABLED else None,
-            'target': TargetScraper(config),
-            'homedepot': HomeDepotScraper(config)
+            'multi_source': MultiSourceScraper(config)
         }
         
         # Remove None values
@@ -53,13 +54,18 @@ class TrendDiscovery:
             for category in self.config.CATEGORIES:
                 try:
                     if hasattr(scraper, 'get_trending_products'):
-                        products = scraper.get_trending_products(category)
+                        products = scraper.get_trending_products(category, limit=10)
                     else:
                         # Fallback to search if get_trending_products not available
                         search_term = self._get_random_search_term(category)
-                        products = scraper.search_products(search_term, category)
+                        products = scraper.search_products(search_term, category, limit=10)
                     
                     all_products.extend(products)
+                    
+                    # Add delay between categories to avoid detection
+                    if self.config.ADVANCED_SCRAPING:
+                        import time
+                        time.sleep(random.uniform(2, 4))
                     
                 except Exception as e:
                     print(f"Error discovering products from {retailer} in {category}: {e}")

@@ -29,9 +29,8 @@ class Config:
     MIN_PROFIT_PERCENTAGE = float(os.getenv('MIN_PROFIT_PERCENTAGE', 15))
     EBAY_FEE_PERCENTAGE = float(os.getenv('EBAY_FEE_PERCENTAGE', 13))
     
-    # Retailers to track (focus on working scrapers)
-    # Currently using web scraping which may face anti-bot measures
-    RETAILERS = ['target', 'homedepot']  # Removed bestbuy due to API requirements
+    # Retailers to track (using multi-source approach for reliability)
+    RETAILERS = ['multi_source']  # Using multi-source for reliable product discovery
     
     # Note: Web scraping may face anti-bot measures from retailers
     # Consider using official APIs when available
@@ -50,3 +49,6 @@ class Config:
     
     # Fallback mode (when eBay is not available)
     FALLBACK_MODE = not EBAY_ENABLED
+    
+    # Advanced scraping mode (uses Selenium for better anti-detection)
+    ADVANCED_SCRAPING = os.getenv('ADVANCED_SCRAPING', 'true').lower() == 'true'

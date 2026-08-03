@@ -7,6 +7,7 @@ import threading
 from config import Config
 from database import Database
 from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
+from scrapers.multi_source import MultiSourceScraper
 from ebay_api import eBayAPI
 from discord_bot import DiscordBot
 from price_analyzer import PriceAnalyzer
@@ -26,10 +27,9 @@ class PriceTracker:
         
         # Initialize scrapers
         print("Initializing scrapers...")
+        print("Using multi-source scraper for reliable product discovery")
         self.scrapers = {
-            'bestbuy': BestBuyScraper(self.config) if self.config.BEST_BUY_ENABLED else None,
-            'target': TargetScraper(self.config),
-            'homedepot': HomeDepotScraper(self.config)
+            'multi_source': MultiSourceScraper(self.config)
         }
         
         # Remove None values
@@ -201,6 +201,14 @@ class PriceTracker:
         except KeyboardInterrupt:
             print("Shutting down...")
             self.scheduler.shutdown()
+            
+            # Cleanup advanced scrapers
+            if self.config.ADVANCED_SCRAPING:
+                print("Closing advanced scrapers...")
+                for scraper in self.scrapers.values():
+                    if hasattr(scraper, 'close'):
+                        scraper.close()
+            
             if self.discord_thread and self.discord_thread.is_alive():
                 # Stop the Discord bot
                 loop = asyncio.get_event_loop()
