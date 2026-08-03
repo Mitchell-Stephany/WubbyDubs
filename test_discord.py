@@ -31,7 +31,7 @@ async def test_discord():
         print("Please add your DISCORD_CHANNEL_ID to the .env file")
         return False
     
-    print(f"[OK] Discord bot token found: {token[:10]}...{token[-4:]}")
+    print("[OK] Discord bot token found")
     print(f"[OK] Channel ID: {channel_id}")
     
     # Initialize bot

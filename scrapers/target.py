@@ -1,7 +1,7 @@
 from typing import Dict, Optional, List
 import requests
 from bs4 import BeautifulSoup
-from .base import BaseScraper
+from .base import BaseScraper, validate_product_id
 
 class TargetScraper(BaseScraper):
     """Target web scraper"""
@@ -14,8 +14,8 @@ class TargetScraper(BaseScraper):
     def get_product_price(self, product_id: str) -> Optional[float]:
         """Get current price for a product using TCIN (Target ID)"""
         try:
-            url = f"{self.BASE_URL}/p/{product_id}"
-            response = requests.get(url, headers=self._get_headers())
+            url = f"{self.BASE_URL}/p/{validate_product_id(product_id)}"
+            response = requests.get(url, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
@@ -46,8 +46,8 @@ class TargetScraper(BaseScraper):
     def get_product_info(self, product_id: str) -> Dict:
         """Get detailed product information"""
         try:
-            url = f"{self.BASE_URL}/p/{product_id}"
-            response = requests.get(url, headers=self._get_headers())
+            url = f"{self.BASE_URL}/p/{validate_product_id(product_id)}"
+            response = requests.get(url, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
@@ -89,7 +89,7 @@ class TargetScraper(BaseScraper):
                 'sortName': 'bestselling'
             }
             
-            response = requests.get(url, params=params, headers=self._get_headers())
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
