@@ -11,15 +11,28 @@ class eBayAPI:
         self.app_id = config.EBAY_APP_ID
         self.cert_id = config.EBAY_CERT_ID
         self.dev_id = config.EBAY_DEV_ID
+        self.enabled = config.EBAY_ENABLED
         
-        self.api = Finding(
-            domain='svcs.ebay.com',
-            appid=self.app_id,
-            config_file=None
-        )
+        if self.enabled:
+            try:
+                self.api = Finding(
+                    domain='svcs.ebay.com',
+                    appid=self.app_id,
+                    config_file=None
+                )
+            except Exception as e:
+                print(f"Failed to initialize eBay API: {e}")
+                self.enabled = False
+        else:
+            print("eBay API not configured - running in fallback mode")
+            self.api = None
     
     def get_average_price(self, query: str, category: str = None) -> Optional[float]:
         """Get average sold price for a product on eBay"""
+        if not self.enabled:
+            # Fallback: return None (system will use price drop percentage instead)
+            return None
+            
         try:
             response = self.api.execute(
                 'findCompletedItems',
@@ -64,6 +77,9 @@ class eBayAPI:
     
     def get_sold_listings(self, query: str, limit: int = 20) -> List[Dict]:
         """Get recent sold listings for a product"""
+        if not self.enabled:
+            return []
+            
         try:
             response = self.api.execute(
                 'findCompletedItems',
@@ -107,6 +123,9 @@ class eBayAPI:
     
     def get_current_listings(self, query: str, limit: int = 20) -> List[Dict]:
         """Get current active listings for a product"""
+        if not self.enabled:
+            return []
+            
         try:
             response = self.api.execute(
                 'findItemsAdvanced',
@@ -149,12 +168,13 @@ class eBayAPI:
     
     def calculate_potential_profit(self, retail_price: float, ebay_price: float) -> Dict:
         """Calculate potential profit after eBay fees"""
-        if not ebay_price or ebay_price <= retail_price:
+        if not self.enabled or not ebay_price or ebay_price <= retail_price:
             return {
                 'profit': 0,
                 'profit_percentage': 0,
                 'ebay_fee': 0,
-                'profitable': False
+                'profitable': False,
+                'requires_ebay': True
             }
         
         # Calculate eBay fee (simplified - actual fees vary by category)
@@ -173,5 +193,6 @@ class eBayAPI:
             'ebay_fee': ebay_fee,
             'shipping_cost': estimated_shipping,
             'total_cost': total_cost,
-            'profitable': profit > 0 and profit_percentage >= self.config.MIN_PROFIT_PERCENTAGE
+            'profitable': profit > 0 and profit_percentage >= self.config.MIN_PROFIT_PERCENTAGE,
+            'requires_ebay': False
         }

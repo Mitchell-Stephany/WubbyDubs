@@ -103,11 +103,11 @@ def main():
     try:
         success = asyncio.run(test_discord())
         if success:
-            print("\n✓ Discord integration is working correctly!")
+            print("\n[SUCCESS] Discord integration is working correctly!")
             print("You can now add your eBay and Best Buy API keys to .env")
             print("Then run the main application with: python main.py")
         else:
-            print("\n✗ Discord test failed. Please check the errors above.")
+            print("\n[FAILED] Discord test failed. Please check the errors above.")
     except KeyboardInterrupt:
         print("\nTest interrupted by user")
     except Exception as e:

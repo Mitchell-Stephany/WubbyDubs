@@ -6,7 +6,7 @@ import threading
 
 from config import Config
 from database import Database
-from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
+from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper, ShopScoutScraper, ShopteraScraper
 from ebay_api import eBayAPI
 from discord_bot import DiscordBot
 from price_analyzer import PriceAnalyzer
@@ -21,10 +21,15 @@ class PriceTracker:
         
         # Initialize scrapers
         self.scrapers = {
-            'bestbuy': BestBuyScraper(self.config),
+            'bestbuy': BestBuyScraper(self.config) if self.config.BEST_BUY_ENABLED else None,
             'target': TargetScraper(self.config),
-            'homedepot': HomeDepotScraper(self.config)
+            'homedepot': HomeDepotScraper(self.config),
+            'shopscout': ShopScoutScraper(self.config),
+            'shoptera': ShopteraScraper(self.config)
         }
+        
+        # Remove None values
+        self.scrapers = {k: v for k, v in self.scrapers.items() if v is not None}
         
         # Initialize eBay API
         self.ebay_api = eBayAPI(self.config)
@@ -70,7 +75,12 @@ class PriceTracker:
             scraper = self.scrapers[retailer]
             
             try:
-                current_price = scraper.get_product_price(product_id)
+                # Handle Shopify stores specially
+                if retailer.startswith('shopify_'):
+                    domain = retailer.replace('shopify_', '')
+                    current_price = scraper.get_product_price(product_id, domain)
+                else:
+                    current_price = scraper.get_product_price(product_id)
                 
                 if current_price:
                     self.db.update_price(product_id, current_price)

@@ -3,13 +3,13 @@ from discord.ext import commands
 from typing import Dict
 import asyncio
 
-class DiscordBot(commands.Bot):
+class DiscordBot(discord.Client):
     """Discord bot for sending deal notifications"""
     
     def __init__(self, config):
         intents = discord.Intents.default()
-        intents.message_content = True
-        super().__init__(command_prefix='!', intents=intents)
+        intents.message_content = False  # Disable privileged intent
+        super().__init__(intents=intents)
         
         self.config = config
         self.channel_id = config.DISCORD_CHANNEL_ID
@@ -55,7 +55,9 @@ class DiscordBot(commands.Bot):
             
             # eBay comparison
             ebay_price = deal.get('ebay_price', 0)
-            if ebay_price:
+            fallback_mode = deal.get('fallback_mode', False)
+            
+            if ebay_price and not fallback_mode:
                 embed.add_field(name="eBay Price", value=f"${ebay_price:.2f}", inline=True)
                 
                 potential_profit = deal.get('potential_profit', 0)
@@ -65,6 +67,13 @@ class DiscordBot(commands.Bot):
                     name="Potential Profit",
                     value=f"${potential_profit:.2f} ({profit_percentage:.1f}%)",
                     inline=True
+                )
+            
+            if fallback_mode:
+                embed.add_field(
+                    name="Note",
+                    value="Price drop detected (eBay comparison unavailable)",
+                    inline=False
                 )
             
             embed.add_field(name="Link", value=deal.get('url', 'N/A'), inline=False)

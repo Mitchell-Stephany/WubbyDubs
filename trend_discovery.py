@@ -1,5 +1,5 @@
 from typing import List, Dict
-from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
+from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper, ShopScoutScraper, ShopteraScraper
 from database import Database
 import random
 
@@ -10,10 +10,15 @@ class TrendDiscovery:
         self.config = config
         self.db = database
         self.scrapers = {
-            'bestbuy': BestBuyScraper(config),
+            'bestbuy': BestBuyScraper(config) if config.BEST_BUY_ENABLED else None,
             'target': TargetScraper(config),
-            'homedepot': HomeDepotScraper(config)
+            'homedepot': HomeDepotScraper(config),
+            'shopscout': ShopScoutScraper(config),
+            'shoptera': ShopteraScraper(config)
         }
+        
+        # Remove None values
+        self.scrapers = {k: v for k, v in self.scrapers.items() if v is not None}
         
         # Popular search terms for different categories
         self.search_terms = {
@@ -49,7 +54,16 @@ class TrendDiscovery:
             # Get trending products from each category
             for category in self.config.CATEGORIES:
                 try:
-                    if hasattr(scraper, 'get_trending_products'):
+                    if retailer == 'shopscout':
+                        # Handle Shopify stores specially
+                        for store in self.config.SHOPIFY_STORES[:2]:  # Limit to 2 stores per run
+                            products = scraper.get_store_products(store)
+                            all_products.extend(products)
+                    elif retailer == 'shoptera':
+                        # Handle Shoptera searches
+                        products = scraper.get_trending_products(category, limit=10)
+                        all_products.extend(products)
+                    elif hasattr(scraper, 'get_trending_products'):
                         products = scraper.get_trending_products(category)
                     else:
                         # Fallback to search if get_trending_products not available

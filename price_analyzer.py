@@ -37,7 +37,7 @@ class PriceAnalyzer:
         if not product:
             return None
         
-        # Check eBay prices
+        # Check eBay prices (if available)
         product_name = product['name']
         ebay_price = self.ebay.get_average_price(product_name)
         
@@ -45,13 +45,27 @@ class PriceAnalyzer:
         profit_info = {}
         if ebay_price:
             profit_info = self.ebay.calculate_potential_profit(current_price, ebay_price)
+        else:
+            # Fallback mode: no eBay data
+            profit_info = {
+                'profit': 0,
+                'profit_percentage': 0,
+                'requires_ebay': True
+            }
         
         # Determine if this is a good deal
         is_good_deal = False
-        if profit_info.get('profitable', False):
-            is_good_deal = True
-        elif drop_percentage >= 30:  # Also alert on large drops even if not profitable
-            is_good_deal = True
+        
+        if self.ebay.enabled:
+            # With eBay: use profit-based threshold
+            if profit_info.get('profitable', False):
+                is_good_deal = True
+            elif drop_percentage >= 30:  # Also alert on large drops even if not profitable
+                is_good_deal = True
+        else:
+            # Fallback mode: use price drop percentage only
+            if drop_percentage >= self.config.MIN_PROFIT_PERCENTAGE:
+                is_good_deal = True
         
         deal_info = {
             'product_id': product_id,
@@ -66,6 +80,7 @@ class PriceAnalyzer:
             'potential_profit': profit_info.get('profit', 0),
             'profit_percentage': profit_info.get('profit_percentage', 0),
             'is_good_deal': is_good_deal,
+            'fallback_mode': not self.ebay.enabled,
             'timestamp': None  # Will be set when recording
         }
         
