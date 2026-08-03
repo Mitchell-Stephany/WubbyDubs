@@ -1,8 +1,7 @@
 from typing import Dict, Optional, List
-import requests
 from .base import BaseScraper
+from utils import build_product_record
 import random
-import time
 
 class MultiSourceScraper(BaseScraper):
     """Multi-source scraper that provides reliable product discovery"""
@@ -106,14 +105,14 @@ class MultiSourceScraper(BaseScraper):
         for i, base_product in enumerate(base_products[:limit]):
             product_id = f"generic_{selected_category}_{i}"
             price = base_product['base_price'] * random.uniform(0.9, 1.3)  # Add some price variation
-            products.append({
-                'product_id': product_id,
-                'name': f"{base_product['name']} - {query.title() if query else 'Popular'}",
-                'url': f"https://example.com/products/{i}",
-                'category': selected_category,
-                'price': price,
-                'retailer': 'multi_source'
-            })
+            products.append(build_product_record(
+                product_id=product_id,
+                name=f"{base_product['name']} - {query.title() if query else 'Popular'}",
+                url=f"https://example.com/products/{i}",
+                category=selected_category,
+                price=price,
+                retailer='multi_source'
+            ))
             # Store the initial price
             if product_id not in self.product_prices:
                 self.product_prices[product_id] = price

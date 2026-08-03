@@ -1,7 +1,30 @@
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 from database import Database
 from ebay_api import eBayAPI
 from config import Config
+from utils import calculate_drop_percentage
+
+
+def update_tracked_prices(db: Database, products: List[Dict],
+                          get_price: Callable[[Dict], Optional[float]]) -> int:
+    """Fetch and store the current price of every given product"""
+    updated = 0
+    
+    for product in products:
+        try:
+            current_price = get_price(product)
+            
+            if current_price:
+                db.update_price(product['product_id'], current_price)
+                print(f"Updated price for {product['name']}: ${current_price:.2f}")
+                updated += 1
+            else:
+                print(f"Could not fetch price for {product['name']}")
+                
+        except Exception as e:
+            print(f"Error checking price for {product['name']}: {e}")
+    
+    return updated
 
 class PriceAnalyzer:
     """Analyzes price changes and calculates profit potential"""
@@ -20,11 +43,7 @@ class PriceAnalyzer:
             # First time seeing this product, just record the price
             return None
         
-        # Calculate price drop percentage
-        if previous_price > 0:
-            drop_percentage = ((previous_price - current_price) / previous_price) * 100
-        else:
-            drop_percentage = 0
+        drop_percentage = calculate_drop_percentage(previous_price, current_price)
         
         # Only proceed if price dropped
         if drop_percentage <= 0:
@@ -124,8 +143,8 @@ class PriceAnalyzer:
             current_price = self.db.get_latest_price(product_id)
             previous_price = self.db.get_previous_price(product_id)
             
-            if current_price and previous_price and previous_price > 0:
-                drop_percentage = ((previous_price - current_price) / previous_price) * 100
+            if current_price and previous_price:
+                drop_percentage = calculate_drop_percentage(previous_price, current_price)
                 
                 if drop_percentage >= min_drop_percentage:
                     significant_drops.append({
