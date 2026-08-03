@@ -6,6 +6,7 @@ Add specific products to track manually
 from database import Database
 from config import Config
 from scrapers import TargetScraper, HomeDepotScraper
+from scrapers.base import validate_product_id
 
 def add_manual_product():
     """Manually add a product to track"""
@@ -46,6 +47,12 @@ def add_manual_product():
             product_id = product_input.split('/')[-1]
     else:
         product_id = product_input
+    
+    try:
+        product_id = validate_product_id(product_id)
+    except ValueError:
+        print("Invalid product ID - only letters, digits, '.', '_' and '-' are allowed")
+        return
     
     print(f"\nFetching product info for {product_id}...")
     

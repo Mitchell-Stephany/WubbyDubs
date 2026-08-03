@@ -1,7 +1,8 @@
 from typing import Dict, Optional, List
+from urllib.parse import quote
 import requests
 from bs4 import BeautifulSoup
-from .base import BaseScraper
+from .base import BaseScraper, validate_product_id
 
 class HomeDepotScraper(BaseScraper):
     """Home Depot web scraper"""
@@ -14,8 +15,8 @@ class HomeDepotScraper(BaseScraper):
     def get_product_price(self, product_id: str) -> Optional[float]:
         """Get current price for a product using product ID"""
         try:
-            url = f"{self.BASE_URL}/p/{product_id}"
-            response = requests.get(url, headers=self._get_headers())
+            url = f"{self.BASE_URL}/p/{validate_product_id(product_id)}"
+            response = requests.get(url, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
@@ -47,8 +48,8 @@ class HomeDepotScraper(BaseScraper):
     def get_product_info(self, product_id: str) -> Dict:
         """Get detailed product information"""
         try:
-            url = f"{self.BASE_URL}/p/{product_id}"
-            response = requests.get(url, headers=self._get_headers())
+            url = f"{self.BASE_URL}/p/{validate_product_id(product_id)}"
+            response = requests.get(url, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
@@ -79,7 +80,7 @@ class HomeDepotScraper(BaseScraper):
     def search_products(self, query: str, category: str = None) -> List[Dict]:
         """Search for products on Home Depot"""
         try:
-            url = f"{self.BASE_URL}/s/{query}"
+            url = f"{self.BASE_URL}/s/{quote(query, safe='')}"
             params = {
                 'NCNI-5': '1',
                 'Nao-': '1',
@@ -90,7 +91,7 @@ class HomeDepotScraper(BaseScraper):
             if category:
                 params['M'] = category
             
-            response = requests.get(url, params=params, headers=self._get_headers())
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')

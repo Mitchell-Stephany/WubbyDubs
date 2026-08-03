@@ -1,6 +1,6 @@
 from typing import Dict, Optional, List
 import requests
-from .base import BaseScraper
+from .base import BaseScraper, validate_domain
 
 class ShopScoutScraper(BaseScraper):
     """ShopScout scraper for Shopify stores - no API key required"""
@@ -15,9 +15,9 @@ class ShopScoutScraper(BaseScraper):
         """Get all products from a Shopify store"""
         try:
             # Shopify stores have a public JSON API at /products.json
-            url = f"https://{domain}/products.json"
+            url = f"https://{validate_domain(domain)}/products.json"
             
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            response = requests.get(url, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             data = response.json()
@@ -56,8 +56,8 @@ class ShopScoutScraper(BaseScraper):
     def get_product_price(self, product_id: str, domain: str) -> Optional[float]:
         """Get current price for a specific product from a Shopify store"""
         try:
-            url = f"https://{domain}/products.json"
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            url = f"https://{validate_domain(domain)}/products.json"
+            response = requests.get(url, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             data = response.json()
@@ -82,8 +82,8 @@ class ShopScoutScraper(BaseScraper):
     def get_product_info(self, product_id: str, domain: str) -> Dict:
         """Get detailed product information from a Shopify store"""
         try:
-            url = f"https://{domain}/products.json"
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            url = f"https://{validate_domain(domain)}/products.json"
+            response = requests.get(url, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             data = response.json()

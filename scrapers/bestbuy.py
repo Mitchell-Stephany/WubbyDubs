@@ -1,6 +1,6 @@
 from typing import Dict, Optional, List
 import requests
-from .base import BaseScraper
+from .base import BaseScraper, validate_product_id
 
 class BestBuyScraper(BaseScraper):
     """Best Buy API scraper"""
@@ -14,13 +14,13 @@ class BestBuyScraper(BaseScraper):
     def get_product_price(self, product_id: str) -> Optional[float]:
         """Get current price for a product using SKU"""
         try:
-            url = f"{self.BASE_URL}/{product_id}.json"
+            url = f"{self.BASE_URL}/{validate_product_id(product_id)}.json"
             params = {
                 'apiKey': self.api_key,
                 'show': 'salePrice,regularPrice,name,url'
             }
             
-            response = requests.get(url, params=params, headers=self._get_headers())
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             data = response.json()
@@ -36,13 +36,13 @@ class BestBuyScraper(BaseScraper):
     def get_product_info(self, product_id: str) -> Dict:
         """Get detailed product information"""
         try:
-            url = f"{self.BASE_URL}/{product_id}.json"
+            url = f"{self.BASE_URL}/{validate_product_id(product_id)}.json"
             params = {
                 'apiKey': self.api_key,
                 'show': 'name,url,categoryPath,salePrice,regularPrice,description,image'
             }
             
-            response = requests.get(url, params=params, headers=self._get_headers())
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             data = response.json()
@@ -76,7 +76,7 @@ class BestBuyScraper(BaseScraper):
             if category:
                 params['categoryPath.id'] = category
             
-            response = requests.get(url, params=params, headers=self._get_headers())
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             data = response.json()
@@ -112,7 +112,7 @@ class BestBuyScraper(BaseScraper):
             if category != 'all':
                 params['categoryPath.id'] = category
             
-            response = requests.get(url, params=params, headers=self._get_headers())
+            response = requests.get(url, params=params, headers=self._get_headers(), timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             
             data = response.json()

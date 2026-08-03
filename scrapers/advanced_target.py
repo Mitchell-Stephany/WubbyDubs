@@ -1,5 +1,6 @@
 from typing import Dict, Optional, List
 from .advanced_base import AdvancedScraper
+from .base import validate_product_id
 
 class AdvancedTargetScraper(AdvancedScraper):
     """Advanced Target scraper with anti-detection"""
@@ -12,7 +13,7 @@ class AdvancedTargetScraper(AdvancedScraper):
             return None
             
         try:
-            url = f"{self.BASE_URL}/p/{product_id}"
+            url = f"{self.BASE_URL}/p/{validate_product_id(product_id)}"
             self.driver.get(url)
             self._random_delay(3, 6)
             
@@ -49,7 +50,7 @@ class AdvancedTargetScraper(AdvancedScraper):
             return {}
             
         try:
-            url = f"{self.BASE_URL}/p/{product_id}"
+            url = f"{self.BASE_URL}/p/{validate_product_id(product_id)}"
             self.driver.get(url)
             self._random_delay(3, 6)
             
