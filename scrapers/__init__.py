@@ -1,10 +1,6 @@
-from .base import BaseScraper
-from .bestbuy import BestBuyScraper
-from .target import TargetScraper
-from .homedepot import HomeDepotScraper
-from .shopscout import ShopScoutScraper
-from .shoptera import ShopteraScraper
-from .multi_source import MultiSourceScraper
-from .buywhere import BuyWhereScraper
+"""Scraper package - browser-based scraping with Playwright"""
 
-__all__ = ['BaseScraper', 'BestBuyScraper', 'TargetScraper', 'HomeDepotScraper', 'ShopScoutScraper', 'ShopteraScraper', 'MultiSourceScraper', 'BuyWhereScraper']
+from scrapers.browser_scraper import BrowserScraper
+from scrapers.ebay_sold_scraper import eBaySoldScraper
+
+__all__ = ['BrowserScraper', 'eBaySoldScraper']

@@ -8,10 +8,10 @@ class eBayAPI:
     
     def __init__(self, config):
         self.config = config
-        self.app_id = config.EBAY_APP_ID
-        self.cert_id = config.EBAY_CERT_ID
-        self.dev_id = config.EBAY_DEV_ID
-        self.enabled = config.EBAY_ENABLED
+        self.app_id = getattr(config, 'EBAY_APP_ID', None)
+        self.cert_id = getattr(config, 'EBAY_CERT_ID', None)
+        self.dev_id = getattr(config, 'EBAY_DEV_ID', None)
+        self.enabled = getattr(config, 'EBAY_ENABLED', False)
         
         if self.enabled:
             try:

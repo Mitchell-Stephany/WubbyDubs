@@ -1,24 +1,33 @@
 # Price Arbitrage Tracker
 
-A Python-based system that tracks pricing data from major retailers (Best Buy, Target, Home Depot) and identifies profitable arbitrage opportunities by comparing prices against eBay listings. The system sends Discord notifications when it finds deals with profit potential.
+A Python-based system that scrapes real product data from Amazon, Walmart, and Target, monitors prices, and calculates arbitrage profit potential by comparing against eBay resale values. Sends Discord notifications when profitable deals are found.
 
-## Features
+## How It Works
 
-- **Multi-Retailer Tracking**: Supports Best Buy (API), Target (web scraping), Home Depot (web scraping)
-- **Real-Time Price Monitoring**: Configurable check intervals (default: 5 minutes)
-- **eBay Price Comparison**: Uses eBay API to compare retail prices against market value (optional)
-- **Fallback Mode**: Works without eBay API by alerting on significant price drops
-- **Profit Calculation**: Automatically calculates potential profit after eBay fees and shipping costs
-- **Discord Notifications**: Real-time alerts for profitable deals
-- **Trend Discovery**: Automatically discovers trending products to track
-- **Price History**: SQLite database stores complete price history for analysis
+1. **Product Discovery** - Searches Amazon, Walmart, and Target for products across 119 search terms in 7 categories (electronics, gaming, home appliances, tools, outdoor, fitness, beauty/health). Terms are rotated randomly each cycle to avoid repetition.
 
-## Prerequisites
+2. **Price Monitoring** - Visits each tracked product's page directly to check the current price every 30 minutes.
 
-- Python 3.8+
-- Discord Bot Token
-- eBay API credentials (App ID, Cert ID, Dev ID)
-- Best Buy API Key (optional, for Best Buy API access)
+3. **eBay Arbitrage Calculation** - When a price drop is detected, scrapes eBay listing prices for that product to estimate resale value, then calculates profit after eBay fees (13%).
+
+4. **Discord Notifications** - Sends a formatted alert to your Discord channel when a profitable arbitrage opportunity is found, including:
+   - Product name and retailer
+   - Price drop (old vs new price)
+   - Estimated eBay sale price (with range and confidence level)
+   - Estimated profit after fees
+   - Direct link to buy the product
+
+## Retailers
+
+| Retailer | Status | Method |
+|----------|--------|--------|
+| Amazon | Working | Chromium browser (Playwright) |
+| Walmart | Working | Chromium browser (Playwright) |
+| Target | Working | Firefox browser (Playwright) |
+| Home Depot | Blocked | Anti-bot detection (403) |
+| Lowe's | Blocked | Anti-bot detection (403) |
+
+The system uses Playwright with stealth mode (anti-detection scripts) to bypass bot protection. Firefox is used for Target because Chromium gets blocked.
 
 ## Setup
 
@@ -26,169 +35,103 @@ A Python-based system that tracks pricing data from major retailers (Best Buy, T
 
 ```bash
 pip install -r requirements.txt
+python -m playwright install chromium
+python -m playwright install firefox
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure Environment
 
-Copy `.env.example` to `.env` and fill in your credentials:
+Copy `.env.example` to `.env` and fill in your Discord credentials:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your values:
-
 ```env
-# Discord Bot Configuration (Required)
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
-DISCORD_CHANNEL_ID=your_channel_id_here
-
-# eBay API Configuration (Optional - for profit calculations)
-EBAY_APP_ID=your_ebay_app_id_here
-EBAY_CERT_ID=your_ebay_cert_id_here
-EBAY_DEV_ID=your_ebay_dev_id_here
-
-# Best Buy API Configuration (Optional - for Best Buy API access)
-BEST_BUY_API_KEY=your_best_buy_api_key_here
-
-# Configuration
-CHECK_INTERVAL_MINUTES=5
+DISCORD_CHANNEL_ID=your_discord_channel_id_here
+CHECK_INTERVAL_MINUTES=30
 MIN_PROFIT_PERCENTAGE=15
 EBAY_FEE_PERCENTAGE=13
 ```
 
-**Note**: The system works without eBay API by using price drop percentage as the alert threshold. With eBay API, it calculates actual profit potential.
+### 3. Get Discord Bot Token
 
-### 3. Get API Credentials
-
-#### Discord Bot
-1. Go to Discord Developer Portal
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Create a new application
-3. Create a bot user
-4. Copy the bot token
-5. Invite the bot to your server with appropriate permissions
-6. Get the channel ID where you want notifications
+3. Create a bot user and copy the token
+4. Invite the bot to your server
+5. Get the channel ID where you want notifications (right-click channel > Copy ID)
 
-#### eBay API
-1. Go to eBay Developers Portal
-2. Create an application
-3. Get your App ID, Cert ID, and Dev ID
-4. Note: eBay API has rate limits
-
-#### Best Buy API (Optional)
-1. Go to Best Buy Developer Portal
-2. Sign up for API access
-3. Get your API key
-4. Note: Without this, Best Buy scraping will use web scraping
-
-## Usage
-
-### Start the Tracker
+### 4. Run
 
 ```bash
 python main.py
 ```
 
-The system will:
-1. Start the Discord bot
-2. Discover trending products to track
-3. Begin checking prices at the configured interval
-4. Send notifications when profitable deals are found
+Leave it running. It will:
+- Immediately discover products from 5 random search terms
+- Check prices every 30 minutes
+- Discover new products every 2 hours
+- Send Discord alerts for profitable deals
 
-### How It Works
+Press `Ctrl+C` to stop.
 
-**With eBay API:**
-1. **Product Discovery**: The system automatically discovers trending products from supported retailers
-2. **Price Monitoring**: Checks prices every 5 minutes (configurable)
-3. **Price Comparison**: Compares retail prices against eBay sold listings
-4. **Profit Calculation**: Calculates potential profit after:
-   - eBay fees (default 13%)
-   - Estimated shipping costs ($15 default)
-   - Retail price
-5. **Notifications**: Sends Discord alerts when profit percentage exceeds minimum threshold (default 15%)
+## Schedule
 
-**Without eBay API (Fallback Mode):**
-1. **Product Discovery**: Discovers trending products from supported retailers
-2. **Price Monitoring**: Checks prices every 5 minutes (configurable)
-3. **Price Drop Detection**: Monitors for significant price drops
-4. **Notifications**: Sends Discord alerts when price drop exceeds minimum threshold (default 15%)
+| Task | Interval | Description |
+|------|----------|-------------|
+| Product discovery | Every 2 hours | Searches 5 random terms across Amazon/Walmart/Target |
+| Price check | Every 30 min | Visits each tracked product's page directly |
+| Arbitrage analysis | Every 30 min | Scrapes eBay prices for products with price drops |
+| Discord notification | On demand | Sent when a profitable deal is found |
 
-## Configuration
+## Project Structure
 
-### Check Interval
-Adjust how often prices are checked:
-```env
-CHECK_INTERVAL_MINUTES=5
 ```
-
-### Profit Threshold
-Minimum profit percentage to trigger alerts:
-```env
-MIN_PROFIT_PERCENTAGE=15
+price-arbitrage-tracker/
+├── main.py                  # Main application - scheduler and run loop
+├── config.py                # Configuration from environment variables
+├── database.py              # SQLite database operations
+├── discord_bot.py           # Discord notification system
+├── price_analyzer.py        # Price drop analysis and eBay arbitrage calculation
+├── ebay_api.py              # eBay API wrapper (optional, disabled by default)
+├── search_terms.py          # 119 product search terms across 7 categories
+├── scrapers/
+│   ├── __init__.py          # Package exports
+│   ├── browser_scraper.py   # Playwright browser scraper (Amazon, Walmart, Target)
+│   └── ebay_sold_scraper.py # eBay listing scraper for resale value estimation
+├── test_e2e.py              # End-to-end system test
+├── test_ebay.py             # eBay scraper test
+├── requirements.txt         # Python dependencies
+└── .env.example             # Environment variable template
 ```
-
-### eBay Fee Percentage
-Adjust eBay fee calculation:
-```env
-EBAY_FEE_PERCENTAGE=13
-```
-
-## Architecture
-
-- **`main.py`**: Main application loop and scheduler
-- **`config.py`**: Configuration management
-- **`database.py`**: SQLite database operations
-- **`scrapers/`**: Retailer-specific scrapers
-  - `base.py`: Base scraper class
-  - `bestbuy.py`: Best Buy API scraper
-  - `target.py`: Target web scraper
-  - `homedepot.py`: Home Depot web scraper
-- **`ebay_api.py`**: eBay API integration
-- **`discord_bot.py`**: Discord notification system
-- **`price_analyzer.py`**: Price change analysis and profit calculation
-- **`trend_discovery.py`**: Trending product discovery
 
 ## Database
 
-The system uses SQLite (`price_tracker.db`) with three main tables:
+SQLite (`price_tracker.db`) with three tables:
 
-- **products**: Tracked products and their metadata
-- **price_history**: Historical price data
-- **deals**: Discovered profitable deals
+- **products** - Tracked products (ID, retailer, name, URL, category)
+- **price_history** - Historical price records per product
+- **deals** - Discovered deals with profit calculations
 
-## Troubleshooting
+## Testing
 
-### Discord Bot Not Connecting
-- Verify your bot token is correct
-- Ensure the bot has permissions for the channel
-- Check that the channel ID is correct
+```bash
+# Full end-to-end test (discovers products, simulates price drops, checks eBay)
+python test_e2e.py
 
-### eBay API Errors
-- Verify your API credentials
-- Check if you've hit rate limits
-- Ensure your application is properly configured
+# Test eBay scraper only
+python test_ebay.py
+```
 
-### Scraping Issues
-- Some retailers may block scraping - consider using proxies
-- Respect rate limits to avoid being blocked
-- API access (when available) is more reliable than scraping
+## Notes
 
-## Legal and Ethical Considerations
-
-- Respect retailers' terms of service
-- Don't overload servers with too many requests
-- Be aware that arbitrage opportunities may be limited by retailer policies
-- This tool is for educational purposes - actual profit depends on many factors
-
-## Future Enhancements
-
-- Add more retailers (Walmart, Amazon, etc.)
-- Implement machine learning for better trend prediction
-- Add web dashboard for monitoring
-- Support for multiple Discord channels
-- Advanced filtering and custom alerts
-- Historical price analysis and charts
+- Home Depot and Lowe's block all scraping attempts (403 errors) even with browser automation. They are skipped.
+- eBay sold listings require login, so the system scrapes active listings and applies a 10% discount to estimate sold prices.
+- The system uses random delays (3-10 seconds) between requests to avoid rate limiting.
+- Prices are extracted from product pages directly (1 page load per product) rather than re-searching, to minimize scraping load.
 
 ## Disclaimer
 
-This software is provided as-is for educational purposes. Actual profit potential varies based on market conditions, fees, shipping costs, and other factors. Always verify deals independently before making purchasing decisions.
+This software is for educational purposes. Actual profit depends on market conditions, shipping costs, item condition, and other factors. Always verify deals independently before purchasing.

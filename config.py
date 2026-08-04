@@ -12,43 +12,39 @@ class Config:
     except (ValueError, TypeError):
         DISCORD_CHANNEL_ID = 0
     
-    # eBay API (optional)
-    EBAY_APP_ID = os.getenv('EBAY_APP_ID')
-    EBAY_CERT_ID = os.getenv('EBAY_CERT_ID')
-    EBAY_DEV_ID = os.getenv('EBAY_DEV_ID')
-    EBAY_ENABLED = bool(EBAY_APP_ID and EBAY_CERT_ID and EBAY_DEV_ID and 
-                       EBAY_APP_ID != 'your_ebay_app_id_here' and
-                       EBAY_CERT_ID != 'your_ebay_cert_id_here' and
-                       EBAY_DEV_ID != 'your_ebay_dev_id_here')
-    
-    # Best Buy API (optional)
-    BEST_BUY_API_KEY = os.getenv('BEST_BUY_API_KEY')
-    BEST_BUY_ENABLED = bool(BEST_BUY_API_KEY and BEST_BUY_API_KEY != 'your_best_buy_api_key_here')
+    # API keys disabled - using high-fidelity scrapers only
+    EBAY_ENABLED = False
+    BEST_BUY_ENABLED = False
+    BUYWHERE_ENABLED = False
     
     CHECK_INTERVAL_MINUTES = int(os.getenv('CHECK_INTERVAL_MINUTES', 5))
     MIN_PROFIT_PERCENTAGE = float(os.getenv('MIN_PROFIT_PERCENTAGE', 15))
     EBAY_FEE_PERCENTAGE = float(os.getenv('EBAY_FEE_PERCENTAGE', 13))
     
-    # Retailers to track (BuyWhere API for real products)
-    RETAILERS = ['buywhere'] if BUYWHERE_ENABLED else []  # BuyWhere provides real products from Amazon, Best Buy, Walmart
-    
-    # Note: Web scraping may face anti-bot measures from retailers
-    # Consider using official APIs when available
-    
-    # Shopify stores for ShopScout (if API becomes available)
-    SHOPIFY_STORES = [
-        'gymshark.com',
-        'allbirds.com', 
-        'kyliecosmetics.com',
-        'fashionnova.com',
-        'dbrand.com'
-    ]
+    # Retailers to track with high-fidelity scrapers
+    RETAILERS = ['target', 'walmart', 'amazon', 'homedepot', 'lowes']
     
     # Categories to focus on
     CATEGORIES = ['electronics', 'home_goods', 'appliances', 'tools', 'clothing', 'fitness', 'beauty']
     
-    # Fallback mode (when eBay is not available)
-    FALLBACK_MODE = not EBAY_ENABLED
+    # Fallback mode (no eBay API)
+    FALLBACK_MODE = True
     
-    # Advanced scraping mode (uses Selenium for better anti-detection)
-    ADVANCED_SCRAPING = os.getenv('ADVANCED_SCRAPING', 'true').lower() == 'true'
+    # Advanced scraping mode with anti-detection
+    ADVANCED_SCRAPING = True
+    
+    # Anti-detection settings
+    USER_AGENTS = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+    ]
+    
+    # Request delays (seconds)
+    MIN_DELAY = 2
+    MAX_DELAY = 5
+    
+    # Proxy settings (optional)
+    USE_PROXIES = False
+    PROXY_LIST = []

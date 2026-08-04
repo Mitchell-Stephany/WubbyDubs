@@ -31,15 +31,26 @@ class DiscordBot(discord.Client):
                 print(f"Could not find channel with ID {self.channel_id}")
                 return
             
-            # Create embed for better formatting
+            # Determine deal type
+            is_arbitrage = deal.get('is_arbitrage', False)
+            fallback_mode = deal.get('fallback_mode', False)
+            
+            if is_arbitrage:
+                title = "💰 ARBITRAGE OPPORTUNITY! 💰"
+                color = discord.Color.green()
+            else:
+                title = "🔥 PRICE DROP ALERT! 🔥"
+                color = discord.Color.red()
+            
+            # Create embed
             embed = discord.Embed(
-                title="🔥 HOT DEAL FOUND! 🔥",
-                color=discord.Color.red(),
+                title=title,
+                color=color,
                 url=deal.get('url')
             )
             
             embed.add_field(name="Product", value=deal.get('name', 'Unknown'), inline=False)
-            embed.add_field(name="Retailer", value=deal.get('retailer', 'Unknown').capitalize(), inline=True)
+            embed.add_field(name="Retailer", value=deal.get('retailer', 'Unknown'), inline=True)
             embed.add_field(name="Category", value=deal.get('category', 'Unknown'), inline=True)
             
             # Price information
@@ -49,34 +60,60 @@ class DiscordBot(discord.Client):
             
             embed.add_field(
                 name="Price Drop",
-                value=f"${original_price:.2f} → ${new_price:.2f} ({drop_percentage:.1f}%)",
+                value=f"~~${original_price:.2f}~~ → **${new_price:.2f}** ({drop_percentage:.1f}% off)",
                 inline=False
             )
             
-            # eBay comparison
-            ebay_price = deal.get('ebay_price', 0)
-            fallback_mode = deal.get('fallback_mode', False)
+            # eBay arbitrage info
+            ebay_price = deal.get('ebay_price')
+            ebay_price_range = deal.get('ebay_price_range')
+            potential_profit = deal.get('potential_profit', 0)
+            profit_percentage = deal.get('profit_percentage', 0)
+            roi = deal.get('roi', 0)
+            ebay_confidence = deal.get('ebay_confidence')
+            sample_size = deal.get('sample_size')
             
             if ebay_price and not fallback_mode:
-                embed.add_field(name="eBay Price", value=f"${ebay_price:.2f}", inline=True)
+                # eBay price info
+                ebay_value = f"**${ebay_price:.2f}**"
+                if ebay_price_range:
+                    ebay_value += f"\nRange: {ebay_price_range}"
+                if sample_size:
+                    ebay_value += f"\nBased on {sample_size} sold listings"
+                if ebay_confidence:
+                    confidence_emoji = {'high': '🟢', 'medium': '🟡', 'low': '🟠', 'very_low': '🔴'}.get(ebay_confidence, '⚪')
+                    ebay_value += f"\nConfidence: {confidence_emoji} {ebay_confidence}"
                 
-                potential_profit = deal.get('potential_profit', 0)
-                profit_percentage = deal.get('profit_percentage', 0)
+                embed.add_field(name="eBay Sold Price", value=ebay_value, inline=False)
                 
-                embed.add_field(
-                    name="Potential Profit",
-                    value=f"${potential_profit:.2f} ({profit_percentage:.1f}%)",
-                    inline=True
-                )
-            
-            if fallback_mode:
+                # Profit info
+                if potential_profit > 0:
+                    embed.add_field(
+                        name="💰 Estimated Profit",
+                        value=f"**${potential_profit:.2f}** ({profit_percentage:.1f}% margin)\nROI: {roi:.1f}%",
+                        inline=True
+                    )
+                    # Fees note
+                    fees = ebay_price - potential_profit - new_price
+                    embed.add_field(
+                        name="eBay Fees (est.)",
+                        value=f"${fees:.2f}",
+                        inline=True
+                    )
+                else:
+                    embed.add_field(
+                        name="Profit",
+                        value=f"-${abs(potential_profit):.2f} (not profitable after fees)",
+                        inline=False
+                    )
+            elif fallback_mode:
                 embed.add_field(
                     name="Note",
-                    value="Price drop detected (eBay comparison unavailable)",
+                    value="⚠️ No eBay data available - price drop only (not arbitrage verified)",
                     inline=False
                 )
             
-            embed.add_field(name="Link", value=deal.get('url', 'N/A'), inline=False)
+            embed.add_field(name="🛒 Buy Here", value=deal.get('url', 'N/A'), inline=False)
             
             # Add timestamp
             embed.set_footer(text=f"Found at {deal.get('timestamp', 'Unknown')}")
