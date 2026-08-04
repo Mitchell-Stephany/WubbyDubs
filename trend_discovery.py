@@ -1,7 +1,6 @@
 from typing import List, Dict
 from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
 from scrapers.multi_source import MultiSourceScraper
-from scrapers.buywhere import BuyWhereScraper
 from database import Database
 import random
 
@@ -12,15 +11,9 @@ class TrendDiscovery:
         self.config = config
         self.db = database
         
-        # Initialize scrapers based on configuration
+        # DISABLED - No automatic fake product discovery
         self.scrapers = {}
-        
-        # Use BuyWhere API if available (real products from Amazon, Best Buy, Walmart)
-        if config.BUYWHERE_ENABLED:
-            self.scrapers['buywhere'] = BuyWhereScraper(config)
-            print("BuyWhere API enabled for real product discovery")
-        else:
-            print("BuyWhere API not configured - use manual entry only")
+        print("Automatic product discovery disabled - use manual entry only")
         
         # Popular search terms for different categories
         self.search_terms = {

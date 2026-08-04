@@ -25,10 +25,6 @@ class Config:
     BEST_BUY_API_KEY = os.getenv('BEST_BUY_API_KEY')
     BEST_BUY_ENABLED = bool(BEST_BUY_API_KEY and BEST_BUY_API_KEY != 'your_best_buy_api_key_here')
     
-    # BuyWhere API (for real products from Amazon, Best Buy, Walmart)
-    BUYWHERE_API_KEY = os.getenv('BUYWHERE_API_KEY')
-    BUYWHERE_ENABLED = bool(BUYWHERE_API_KEY and BUYWHERE_API_KEY != 'your_buywhere_api_key_here')
-    
     CHECK_INTERVAL_MINUTES = int(os.getenv('CHECK_INTERVAL_MINUTES', 5))
     MIN_PROFIT_PERCENTAGE = float(os.getenv('MIN_PROFIT_PERCENTAGE', 15))
     EBAY_FEE_PERCENTAGE = float(os.getenv('EBAY_FEE_PERCENTAGE', 13))
