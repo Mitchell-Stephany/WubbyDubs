@@ -1,6 +1,7 @@
 from typing import List, Dict
 from scrapers import BestBuyScraper, TargetScraper, HomeDepotScraper
 from scrapers.multi_source import MultiSourceScraper
+from scrapers.buywhere import BuyWhereScraper
 from database import Database
 import random
 
@@ -11,8 +12,15 @@ class TrendDiscovery:
         self.config = config
         self.db = database
         
-        # DISABLED - No automatic fake product discovery
+        # Initialize scrapers based on configuration
         self.scrapers = {}
+        
+        # Use BuyWhere API if available (real products from Amazon, Best Buy, Walmart)
+        if config.BUYWHERE_ENABLED:
+            self.scrapers['buywhere'] = BuyWhereScraper(config)
+            print("BuyWhere API enabled for real product discovery")
+        else:
+            print("BuyWhere API not configured - use manual entry only")
         
         # Popular search terms for different categories
         self.search_terms = {
@@ -39,32 +47,27 @@ class TrendDiscovery:
         """Discover trending products across all retailers"""
         all_products = []
         
-        for retailer in self.config.RETAILERS:
-            if retailer not in self.scrapers:
+        # Use available scrapers
+        for scraper_name, scraper in self.scrapers.items():
+            try:
+                print(f"Searching with {scraper_name}...")
+                
+                if hasattr(scraper, 'get_trending_products'):
+                    products = scraper.get_trending_products(limit=max_products)
+                else:
+                    # Fallback to search with trending keywords
+                    trending_keywords = ['wireless earbuds', 'usb-c hub', 'laptop stand', 'led lights', 'kitchen tools']
+                    products = []
+                    for keyword in trending_keywords:
+                        found = scraper.search_products(keyword, limit=5)
+                        products.extend(found)
+                
+                all_products.extend(products)
+                print(f"Found {len(products)} products from {scraper_name}")
+                
+            except Exception as e:
+                print(f"Error with {scraper_name}: {e}")
                 continue
-            
-            scraper = self.scrapers[retailer]
-            
-            # Get trending products from each category
-            for category in self.config.CATEGORIES:
-                try:
-                    if hasattr(scraper, 'get_trending_products'):
-                        products = scraper.get_trending_products(category, limit=10)
-                    else:
-                        # Fallback to search if get_trending_products not available
-                        search_term = self._get_random_search_term(category)
-                        products = scraper.search_products(search_term, category, limit=10)
-                    
-                    all_products.extend(products)
-                    
-                    # Add delay between categories to avoid detection
-                    if self.config.ADVANCED_SCRAPING:
-                        import time
-                        time.sleep(random.uniform(2, 4))
-                    
-                except Exception as e:
-                    print(f"Error discovering products from {retailer} in {category}: {e}")
-                    continue
         
         # Remove duplicates and limit
         unique_products = self._deduplicate_products(all_products)

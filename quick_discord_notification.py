@@ -26,13 +26,13 @@ async def send_actual_deals():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
-        # Only get deals that haven't been notified AND are real products (manual entry)
+        # Only get deals that haven't been notified AND are real products (manual entry or BuyWhere)
         cursor.execute('''
             SELECT d.*, p.name, p.url, p.retailer, p.category
             FROM deals d
             JOIN products p ON d.product_id = p.product_id
             WHERE d.notified = FALSE 
-            AND p.product_id LIKE 'manual_%'
+            AND (p.product_id LIKE 'manual_%' OR p.product_id LIKE 'buywhere_%')
             ORDER BY d.timestamp DESC
             LIMIT 5
         ''')
@@ -42,7 +42,7 @@ async def send_actual_deals():
         if not deals:
             print("No new deals to send on real products")
             conn.close()
-            print("Use: python real_products_only.py to add real products")
+            print("Use: python run_system.py to find new deals")
             return
         
         print(f"Found {len(deals)} new deals to send")

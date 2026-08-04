@@ -5,5 +5,6 @@ from .homedepot import HomeDepotScraper
 from .shopscout import ShopScoutScraper
 from .shoptera import ShopteraScraper
 from .multi_source import MultiSourceScraper
+from .buywhere import BuyWhereScraper
 
-__all__ = ['BaseScraper', 'BestBuyScraper', 'TargetScraper', 'HomeDepotScraper', 'ShopScoutScraper', 'ShopteraScraper', 'MultiSourceScraper']
+__all__ = ['BaseScraper', 'BestBuyScraper', 'TargetScraper', 'HomeDepotScraper', 'ShopScoutScraper', 'ShopteraScraper', 'MultiSourceScraper', 'BuyWhereScraper']
